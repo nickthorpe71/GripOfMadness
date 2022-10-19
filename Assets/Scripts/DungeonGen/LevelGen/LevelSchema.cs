@@ -6,21 +6,18 @@ namespace DungeonGen
   {
     public const int sectionSize = 3;
     public int roomCount { get; }
-    public Vector3 roomChunkMin { get; }
-    public Vector3 roomChunkMax { get; }
-    public int sectionsPerChunk { get; }
+    public Vector3 roomDimensionsMin { get; }
+    public Vector3 roomDimensionsMax { get; }
+    public int roomsBeforeReduceDoorMin { get; }
+    public float doorChanceOnRoomOverlap { get; }
 
-    public LevelSchema(
-      int _roomCount,
-      int _roomChunkMin,
-      int _roomChunkMax,
-      int _sectionsPerChunk
-    )
+    public LevelSchema(int roomCount, Vector3 roomDimensionsMin, Vector3 roomDimensionsMax, int roomsBeforeReduceDoorMin, float doorChanceOnRoomOverlap)
     {
-      roomCount = _roomCount;
-      roomChunkMin = new Vector3(_roomChunkMin, _roomChunkMin, _roomChunkMin);
-      roomChunkMax = new Vector3(_roomChunkMax, _roomChunkMax, _roomChunkMax);
-      sectionsPerChunk = _sectionsPerChunk;
+      this.roomCount = roomCount;
+      this.roomDimensionsMin = roomDimensionsMin;
+      this.roomDimensionsMax = roomDimensionsMax;
+      this.roomsBeforeReduceDoorMin = roomsBeforeReduceDoorMin;
+      this.doorChanceOnRoomOverlap = doorChanceOnRoomOverlap;
     }
   }
 }
