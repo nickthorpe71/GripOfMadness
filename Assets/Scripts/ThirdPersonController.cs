@@ -97,8 +97,8 @@ namespace StarterAssets
         private int _animIDJump;
         private int _animIDFreeFall;
         private int _animIDMotionSpeed;
-
         private int _animIDLocomotion;
+        private int _animIDCast1;
 
 #if ENABLE_INPUT_SYSTEM && STARTER_ASSETS_PACKAGES_CHECKED
         private PlayerInput _playerInput;
@@ -158,6 +158,7 @@ namespace StarterAssets
         {
             _hasAnimator = TryGetComponent(out _animator);
 
+            UseSkill();
             JumpAndGravity();
             GroundedCheck();
             Move();
@@ -178,6 +179,13 @@ namespace StarterAssets
             _animIDJump = Animator.StringToHash("jump");
             _animIDFreeFall = Animator.StringToHash("freeFall");
             _animIDLocomotion = Animator.StringToHash("locomotion");
+            _animIDCast1 = Animator.StringToHash("cast1");
+        }
+
+        private void UseSkill()
+        {
+            Debug.Log("using skill");
+            _animator.SetBool(_animIDCast1, true);
         }
 
         private void GroundedCheck()
