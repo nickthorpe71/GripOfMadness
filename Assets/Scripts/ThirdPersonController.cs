@@ -170,12 +170,13 @@ namespace StarterAssets
 
         private void AssignAnimationIDs()
         {
+            // TODO - Remove Speed & MotionSpeed later if not needed. Originally from the third person start pack.
             _animIDSpeed = Animator.StringToHash("Speed");
+            _animIDMotionSpeed = Animator.StringToHash("MotionSpeed");
+            
             _animIDGrounded = Animator.StringToHash("grounded");
             _animIDJump = Animator.StringToHash("jump");
             _animIDFreeFall = Animator.StringToHash("freeFall");
-            _animIDMotionSpeed = Animator.StringToHash("MotionSpeed");
-
             _animIDLocomotion = Animator.StringToHash("locomotion");
         }
 
@@ -200,7 +201,7 @@ namespace StarterAssets
             if (_input.look.sqrMagnitude >= _threshold && !LockCameraPosition)
             {
                 //Don't multiply mouse input by Time.deltaTime;
-                float deltaTimeMultiplier = IsCurrentDeviceMouse ? 1.0f : Time.deltaTime;
+                float deltaTimeMultiplier = IsCurrentDeviceMouse ? 2.0f : Time.deltaTime;
 
                 _cinemachineTargetYaw += _input.look.x * deltaTimeMultiplier;
                 _cinemachineTargetPitch += _input.look.y * deltaTimeMultiplier;
