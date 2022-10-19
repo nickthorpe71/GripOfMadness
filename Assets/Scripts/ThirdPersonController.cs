@@ -16,7 +16,7 @@ namespace StarterAssets
     {
         [Header("Player")]
         [Tooltip("Move speed of the character in m/s")]
-        public float MoveSpeed = 2.0f;
+        public float MoveSpeed = 1.0f;
 
         [Tooltip("Sprint speed of the character in m/s")]
         public float SprintSpeed = 5.335f;
@@ -97,6 +97,8 @@ namespace StarterAssets
         private int _animIDJump;
         private int _animIDFreeFall;
         private int _animIDMotionSpeed;
+        private int _animIDLocomotion;
+        private int _animIDCast1;
 
 #if ENABLE_INPUT_SYSTEM && STARTER_ASSETS_PACKAGES_CHECKED
         private PlayerInput _playerInput;
@@ -135,7 +137,7 @@ namespace StarterAssets
         private void Start()
         {
             _cinemachineTargetYaw = CinemachineCameraTarget.transform.rotation.eulerAngles.y;
-            Debug.Log("yep");
+            
             _hasAnimator = TryGetComponent(out _animator);
             _controller = GetComponent<CharacterController>();
             _input = GetComponent<StarterAssetsInputs>();
@@ -155,10 +157,11 @@ namespace StarterAssets
         private void Update()
         {
             _hasAnimator = TryGetComponent(out _animator);
-
+            
             JumpAndGravity();
             GroundedCheck();
             Move();
+            UseSkill();
         }
 
         private void LateUpdate()
@@ -168,11 +171,25 @@ namespace StarterAssets
 
         private void AssignAnimationIDs()
         {
+            // TODO - Remove Speed & MotionSpeed later if not needed. Originally from the third person start pack.
             _animIDSpeed = Animator.StringToHash("Speed");
-            _animIDGrounded = Animator.StringToHash("Grounded");
-            _animIDJump = Animator.StringToHash("Jump");
-            _animIDFreeFall = Animator.StringToHash("FreeFall");
             _animIDMotionSpeed = Animator.StringToHash("MotionSpeed");
+            
+            _animIDGrounded = Animator.StringToHash("grounded");
+            _animIDJump = Animator.StringToHash("jump");
+            _animIDFreeFall = Animator.StringToHash("freeFall");
+            _animIDLocomotion = Animator.StringToHash("locomotion");
+            _animIDCast1 = Animator.StringToHash("cast1");
+        }
+
+        private void UseSkill()
+        {
+            if (_input.useSkill)
+            {
+                Debug.Log("Using skill because input is set to: " + _input.useSkill);
+                _animator.SetBool(_animIDCast1, true);
+                _input.useSkill = false;
+            }
         }
 
         private void GroundedCheck()
@@ -196,7 +213,7 @@ namespace StarterAssets
             if (_input.look.sqrMagnitude >= _threshold && !LockCameraPosition)
             {
                 //Don't multiply mouse input by Time.deltaTime;
-                float deltaTimeMultiplier = IsCurrentDeviceMouse ? 1.0f : Time.deltaTime;
+                float deltaTimeMultiplier = IsCurrentDeviceMouse ? 2.0f : Time.deltaTime;
 
                 _cinemachineTargetYaw += _input.look.x * deltaTimeMultiplier;
                 _cinemachineTargetPitch += _input.look.y * deltaTimeMultiplier;
@@ -274,8 +291,7 @@ namespace StarterAssets
             // update animator if using character
             if (_hasAnimator)
             {
-                _animator.SetFloat(_animIDSpeed, _animationBlend);
-                _animator.SetFloat(_animIDMotionSpeed, inputMagnitude);
+                _animator.SetFloat(_animIDLocomotion, _animationBlend);
             }
         }
 

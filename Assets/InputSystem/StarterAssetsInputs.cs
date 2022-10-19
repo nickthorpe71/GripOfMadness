@@ -12,6 +12,7 @@ namespace StarterAssets
 		public Vector2 look;
 		public bool jump;
 		public bool sprint;
+		public bool useSkill;
 
 		[Header("Movement Settings")]
 		public bool analogMovement;
@@ -43,6 +44,12 @@ namespace StarterAssets
 		{
 			SprintInput(value.isPressed);
 		}
+
+		public void OnUseSkill(InputValue value)
+		{
+			Debug.Log("should use skill? " + value.isPressed);
+			UseSkillInput(value.isPressed);
+		}
 #endif
 
 
@@ -60,6 +67,11 @@ namespace StarterAssets
 		{
 			jump = newJumpState;
 		}
+		
+		public void UseSkillInput(bool newUseSkillState)
+		{
+			useSkill = newUseSkillState;
+		}
 
 		public void SprintInput(bool newSprintState)
 		{
@@ -75,6 +87,7 @@ namespace StarterAssets
 		{
 			Cursor.lockState = newState ? CursorLockMode.Locked : CursorLockMode.None;
 		}
+
 	}
 	
 }
