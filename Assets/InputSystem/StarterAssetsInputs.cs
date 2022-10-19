@@ -47,6 +47,7 @@ namespace StarterAssets
 
 		public void OnUseSkill(InputValue value)
 		{
+			Debug.Log("should use skill? " + value.isPressed);
 			UseSkillInput(value.isPressed);
 		}
 #endif

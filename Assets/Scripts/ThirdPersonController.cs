@@ -157,11 +157,11 @@ namespace StarterAssets
         private void Update()
         {
             _hasAnimator = TryGetComponent(out _animator);
-
-            UseSkill();
+            
             JumpAndGravity();
             GroundedCheck();
             Move();
+            UseSkill();
         }
 
         private void LateUpdate()
@@ -184,8 +184,12 @@ namespace StarterAssets
 
         private void UseSkill()
         {
-            Debug.Log("using skill");
-            _animator.SetBool(_animIDCast1, true);
+            if (_input.useSkill)
+            {
+                Debug.Log("Using skill because input is set to: " + _input.useSkill);
+                _animator.SetBool(_animIDCast1, true);
+                _input.useSkill = false;
+            }
         }
 
         private void GroundedCheck()
