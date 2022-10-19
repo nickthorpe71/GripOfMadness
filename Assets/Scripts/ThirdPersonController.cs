@@ -171,9 +171,9 @@ namespace StarterAssets
         private void AssignAnimationIDs()
         {
             _animIDSpeed = Animator.StringToHash("Speed");
-            _animIDGrounded = Animator.StringToHash("Grounded");
-            _animIDJump = Animator.StringToHash("Jump");
-            _animIDFreeFall = Animator.StringToHash("FreeFall");
+            _animIDGrounded = Animator.StringToHash("grounded");
+            _animIDJump = Animator.StringToHash("jump");
+            _animIDFreeFall = Animator.StringToHash("freeFall");
             _animIDMotionSpeed = Animator.StringToHash("MotionSpeed");
 
             _animIDLocomotion = Animator.StringToHash("locomotion");
