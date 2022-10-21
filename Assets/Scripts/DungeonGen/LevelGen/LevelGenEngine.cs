@@ -6,17 +6,13 @@ using DungeonGen;
 public class LevelGenEngine : MonoBehaviour
 {
   public GameObject borderBlockPrefab;
-  public GameObject doorBlockPrefab;
-  public GameObject entranceBlockPrefab;
-  public GameObject exitBlockPrefab;
-  public GameObject pathBlockPrefab;
   public GameObject filledBlockPrefab;
   public GameObject rampBlockPrefab;
 
 
   void Start()
   {
-    LevelSchema levelSchema = new LevelSchema(8, 15, new Vector3Int(8, 5, 8), new Vector3Int(52, 52, 52), 6, 0.5f);
+    LevelSchema levelSchema = new LevelSchema(8, 15, new Vector3Int(8, 5, 8), new Vector3Int(62, 52, 62), 0.5f);
     LevelData levelData = GenerateLevelData(levelSchema);
     InstantiateRoom(levelData.startRoom);
   }
@@ -31,9 +27,9 @@ public class LevelGenEngine : MonoBehaviour
   private Room[] GenerateRooms(int numRooms, LevelSchema levelSchema)
   {
     Room previousRoom = null;
-    Room[] rooms = new Room[numRooms].Select((_) =>
+    Room[] rooms = new Room[numRooms].Select((_, currentRoomNum) =>
     {
-      Room room = GenerateRoom(previousRoom, levelSchema);
+      Room room = GenerateRoom(levelSchema, currentRoomNum, numRooms);
       previousRoom = room;
       return room;
     }).ToArray();
@@ -41,7 +37,7 @@ public class LevelGenEngine : MonoBehaviour
     return rooms;
   }
 
-  private Room GenerateRoom(Room previousRoom, LevelSchema levelSchema)
+  private Room GenerateRoom(LevelSchema levelSchema, int currentRoomNum, int numRooms)
   {
     // determine room size
     Vector3Int roomSize = new Vector3Int(
@@ -51,29 +47,8 @@ public class LevelGenEngine : MonoBehaviour
     );
 
     Block[][][] blocks = new Block[roomSize.x][][];
-
-    // build its outer box with BORDER sections
-    for (int x = 0; x < roomSize.x; x++)
-    {
-      blocks[x] = new Block[roomSize.y][];
-      for (int y = 0; y < roomSize.y; y++)
-      {
-        blocks[x][y] = new Block[roomSize.z];
-        for (int z = 0; z < roomSize.z; z++)
-        {
-          if (isBorder(new Vector3Int(x, y, z), roomSize))
-            blocks[x][y][z] = new Block(new Vector3(x, y, z), BlockType.BORDER, Quaternion.identity);
-        }
-      }
-    }
-
-    // Place doors in the BORDER sections
-    // 	- if overlapping with another room roll to see if we should create a door (parameterize chance)
-    // 	- start with min 2 doors per room
-    // 	- each door after 2 has less of a chance
-    // 	- after (x) rooms / (maybe 50%?) are created min doors is 1
-    // 	- if this is the first room make one of the doors the entrance to the level
-    // 	-	if this is the last room make one of the doors the level exit
+    blocks = GenerateRoomBorder(blocks, roomSize);
+    blocks = CarveOutDoors(blocks, levelSchema, roomSize, currentRoomNum, numRooms);
 
     // Create random series of PATH sections leading from each door to the others
     // 	- these sections cannot be filled
@@ -99,6 +74,65 @@ public class LevelGenEngine : MonoBehaviour
     return new Room(blocks, roomSize, Vector3Int.zero);
   }
 
+  private Block[][][] GenerateRoomBorder(Block[][][] blocks, Vector3Int roomSize)
+  {
+    // build rpp, outer box with BORDER blocks
+    for (int x = 0; x < roomSize.x; x++)
+    {
+      blocks[x] = new Block[roomSize.y][];
+      for (int y = 0; y < roomSize.y; y++)
+      {
+        blocks[x][y] = new Block[roomSize.z];
+        for (int z = 0; z < roomSize.z; z++)
+        {
+          if (isBorder(new Vector3Int(x, y, z), roomSize))
+            blocks[x][y][z] = new Block(new Vector3(x, y, z), BlockType.BORDER, Quaternion.identity);
+        }
+      }
+    }
+    return blocks;
+  }
+
+  private Block[][][] CarveOutDoors(Block[][][] blocks, LevelSchema levelSchema, Vector3Int roomSize, int currentRoomNum, int numRooms)
+  {
+    // Place doors along the border of the room
+    // 	- start with min 2 doors per room
+    //  - after half the rooms are are created, min doors is 1
+    int minDoorsToPlace = (currentRoomNum <= numRooms / 2) ? 2 : 1;
+    int maxDoorsToPlace = (int)Mathf.Floor((roomSize.x + roomSize.y + roomSize.z) / 10);
+    int doorsToPlace = Random.Range(minDoorsToPlace, maxDoorsToPlace);
+    int distanceFromTop = levelSchema.doorHeight + 1;
+
+    for (int i = 0; i < doorsToPlace; i++)
+    {
+      // choose a random side of the room to place the door
+      int side = Random.Range(0, 4);
+
+      // choose a random position along the side
+      // - ensure that the door is not too close to the top or bottom of the room
+      // NOTE: 0 = North, 1 = South, 2 = East, 3 = West
+      int randomX = (side == 0 || side == 1) ? Random.Range(levelSchema.doorWidth, roomSize.x - levelSchema.doorWidth) : (side == 2) ? 0 : roomSize.x - 1;
+      int randomY = Random.Range(1, roomSize.y - distanceFromTop);
+      int randomZ = (side == 2 || side == 3) ? Random.Range(levelSchema.doorWidth, roomSize.z - levelSchema.doorWidth) : (side == 0) ? 0 : roomSize.z - 1;
+
+      // place the door blocks
+      // 	- if this is the first room make one of the doors the entrance to the level
+      // 	-	if this is the last room make one of the doors the level exit
+      Vector3Int doorPosition = new Vector3Int(randomX, randomY, randomZ);
+      for (int j = 0; j < levelSchema.doorHeight; j++)
+      {
+        BlockType type = (i == 0 && currentRoomNum == 0) ? BlockType.ENTRANCE : (i == doorsToPlace - 1 && currentRoomNum == numRooms - 1) ? BlockType.EXIT : BlockType.DOOR;
+
+        int adjustedX = (side == 0 || side == 1) ? randomX + 1 : randomX;
+        int adjustedZ = (side == 2 || side == 3) ? randomZ + 1 : randomZ;
+        blocks[randomX][randomY + j][randomZ] = new Block(doorPosition, type, Quaternion.identity);
+        blocks[adjustedX][randomY + j][adjustedZ] = new Block(doorPosition, type, Quaternion.identity);
+      }
+    }
+
+    return blocks;
+  }
+
   private bool isBorder(Vector3Int position, Vector3Int roomSize)
   {
     return position.x == 0 || position.x == roomSize.x - 1 || position.y == 0 || position.y == roomSize.y - 1 || position.z == 0 || position.z == roomSize.z - 1;
@@ -116,6 +150,8 @@ public class LevelGenEngine : MonoBehaviour
     // - if not first room, position relative to previous room
     // - make sure it doesn't overlap any other rooms
 
+    // 	- if overlapping with another room roll to see if we should create a door (parameterize chance)
+
     return rooms;
   }
 
@@ -132,7 +168,8 @@ public class LevelGenEngine : MonoBehaviour
           if (block != null)
           {
             GameObject blockObject = InstantiateBlock(block, room, roomObject);
-            blockObject.transform.parent = roomObject.transform;
+            if (blockObject != null)
+              blockObject.transform.parent = roomObject.transform;
           }
         }
 
@@ -147,32 +184,23 @@ public class LevelGenEngine : MonoBehaviour
       case BlockType.BORDER:
         blockPrefab = borderBlockPrefab;
         break;
-      case BlockType.DOOR:
-        blockPrefab = doorBlockPrefab;
-        break;
-      case BlockType.ENTRANCE:
-        blockPrefab = entranceBlockPrefab;
-        break;
-      case BlockType.EXIT:
-        blockPrefab = exitBlockPrefab;
-        break;
-      case BlockType.PATH:
-        blockPrefab = pathBlockPrefab;
-        break;
       case BlockType.FILLED:
         blockPrefab = filledBlockPrefab;
         break;
       case BlockType.RAMP:
         blockPrefab = rampBlockPrefab;
         break;
+      case BlockType.DOOR:
+      case BlockType.ENTRANCE:
+      case BlockType.EXIT:
+      case BlockType.PATH:
+      case BlockType.EMPTY:
+      case BlockType.SPAWNABLE:
+        break;
     }
-
-    Vector3 actualBlockPosition = new Vector3(
-      room.position.x - (room.size.x / 2) + block.relativePosition.x,
-      room.position.y - (room.size.y / 2) + block.relativePosition.y,
-      room.position.z - (room.size.z / 2) + block.relativePosition.z
-    );
-
+    if (blockPrefab == null)
+      return null;
+    Vector3 actualBlockPosition = room.position - (room.size / 2) + block.relativePosition;
     GameObject blockObject = Instantiate(blockPrefab, actualBlockPosition, block.rotation);
     return blockObject;
   }

@@ -69,21 +69,19 @@ namespace DungeonGen
 
   public class LevelSchema
   {
-    public const int sectionSize = 3;
+    public readonly int doorWidth = 2, doorHeight = 3;
     public int minRooms { get; }
     public int maxRooms { get; }
     public Vector3Int minRoomSize { get; }
     public Vector3Int maxRoomSize { get; }
-    public int roomsBeforeReduceDoorMin { get; }
     public float doorChanceOnRoomOverlap { get; }
 
-    public LevelSchema(int minRooms, int maxRooms, Vector3Int minRoomSize, Vector3Int maxRoomSize, int roomsBeforeReduceDoorMin, float doorChanceOnRoomOverlap)
+    public LevelSchema(int minRooms, int maxRooms, Vector3Int minRoomSize, Vector3Int maxRoomSize, float doorChanceOnRoomOverlap)
     {
       this.minRooms = minRooms;
       this.maxRooms = maxRooms;
       this.minRoomSize = minRoomSize;
       this.maxRoomSize = maxRoomSize;
-      this.roomsBeforeReduceDoorMin = roomsBeforeReduceDoorMin;
       this.doorChanceOnRoomOverlap = doorChanceOnRoomOverlap;
     }
   }
