@@ -75,18 +75,25 @@ public class LevelGenEngine : MonoBehaviour
     // 	- if this is the first room make one of the doors the entrance to the level
     // 	-	if this is the last room make one of the doors the level exit
 
-    // 3. create random series of PATH sections leading from each door to the others
+    // Create random series of PATH sections leading from each door to the others
     // 	- these sections cannot be filled
     // 	- https://medium.com/i-math/the-drunkards-walk-explained-48a0205d304
-    // 4. place FILLED and RAMP sections under the PATH sections
+
+    // Place FILLED and RAMP sections under the PATH sections
     // 	- will need to detect where to put RAMP sections
-    // 5. randomly fill other sections of the room with FILLED sections
+
+    // Randomly fill other sections of the room with FILLED sections
     // 	- could potentially have prebuilt shapes, things coming from the ground, etc.
-    // 6. check for any hollow/inaccessible sections (surrounded by other sections) and fill them
-    // 7. look for areas that the player could fall into and not be able to get out of or that are too tall to reach and add a series of RAMP and FILLED sections to prevent this
+
+
+    // Check for any hollow/inaccessible sections (surrounded by other sections) and fill them
+
+    // Look for areas that the player could fall into and not be able to get out of or that are too tall to reach and add a series of RAMP and FILLED sections to prevent this
     // 	- this will likely consist of looking for any sections that are FILLED with nothing above them and making sure that a ramp leads to it or any other FILLED sections around them have a ramp
-    // 8. create a reference map to all open areas with a filled section below them and mark them SPAWNABLE
-    // 9. fill all remaining sections with EMPTY
+
+    // Create a reference map to all open areas with a filled section below them and mark them SPAWNABLE
+
+    // Fill all remaining sections with EMPTY
 
 
     return new Room(blocks, roomSize, Vector3Int.zero);
