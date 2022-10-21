@@ -6,6 +6,12 @@ namespace DungeonGen
   {
     public Room[] rooms { get; }
     public Room startRoom { get; }
+
+    public LevelData(Room[] rooms)
+    {
+      this.rooms = rooms;
+      this.startRoom = rooms[0];
+    }
   }
 
   public class Room
@@ -14,8 +20,13 @@ namespace DungeonGen
     public Vector3Int size { get; }
     // center position of room in global space
     public Vector3Int position { get; }
-    public Room previousRoom { get; }
-    public Room nextRoom { get; }
+
+    public Room(Block[][][] blocks, Vector3Int size, Vector3Int position)
+    {
+      this.blocks = blocks;
+      this.size = size;
+      this.position = position;
+    }
   }
 
   public class Block
@@ -24,6 +35,13 @@ namespace DungeonGen
     public Vector3 relativePosition { get; }
     public BlockType type { get; }
     public Quaternion rotation { get; }
+
+    public Block(Vector3 relativePosition, BlockType type, Quaternion rotation)
+    {
+      this.relativePosition = relativePosition;
+      this.type = type;
+      this.rotation = rotation;
+    }
   }
 
   public enum BlockType
@@ -47,5 +65,26 @@ namespace DungeonGen
     // - med chance to spawn gizmos
     // - med chance to spawn monsters
     EMPTY, // empty space
+  }
+
+  public class LevelSchema
+  {
+    public const int sectionSize = 3;
+    public int minRooms { get; }
+    public int maxRooms { get; }
+    public Vector3Int minRoomSize { get; }
+    public Vector3Int maxRoomSize { get; }
+    public int roomsBeforeReduceDoorMin { get; }
+    public float doorChanceOnRoomOverlap { get; }
+
+    public LevelSchema(int minRooms, int maxRooms, Vector3Int minRoomSize, Vector3Int maxRoomSize, int roomsBeforeReduceDoorMin, float doorChanceOnRoomOverlap)
+    {
+      this.minRooms = minRooms;
+      this.maxRooms = maxRooms;
+      this.minRoomSize = minRoomSize;
+      this.maxRoomSize = maxRoomSize;
+      this.roomsBeforeReduceDoorMin = roomsBeforeReduceDoorMin;
+      this.doorChanceOnRoomOverlap = doorChanceOnRoomOverlap;
+    }
   }
 }
