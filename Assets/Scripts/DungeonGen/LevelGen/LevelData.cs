@@ -32,11 +32,11 @@ namespace DungeonGen
   public class Block
   {
     // position relative to room
-    public Vector3 relativePosition { get; }
+    public Vector3Int relativePosition { get; }
     public BlockType type { get; }
     public Quaternion rotation { get; }
 
-    public Block(Vector3 relativePosition, BlockType type, Quaternion rotation)
+    public Block(Vector3Int relativePosition, BlockType type, Quaternion rotation)
     {
       this.relativePosition = relativePosition;
       this.type = type;
