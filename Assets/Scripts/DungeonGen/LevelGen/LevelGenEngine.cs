@@ -20,14 +20,13 @@ public class LevelGenEngine : MonoBehaviour
       8, // min rooms
       15, // max rooms
       new Vector3Int(8, 5, 8), // min room size
-      new Vector3Int(62, 52, 62), // max room size
+      new Vector3Int(62, 44, 62), // max room size
       2, // door width
       3, // door height
       3, // min path width
       2 * Random.Range(2, 4), // max path width
       3, // min path height
       3 * Random.Range(2, 5), // max path height
-      3, // random path probability (%)
       0.5f // door change on room overlap
     );
 
@@ -76,6 +75,7 @@ public class LevelGenEngine : MonoBehaviour
     // look up how humans create architecture
     // Randomly fill other sections of the room with FILLED sections
     // 	- could potentially have prebuilt shapes, things coming from the ground, etc.
+    // Check how much open floor space there is, if there's not much we probably need to create some
 
     // --- Themes ---
     // INFO:
@@ -110,24 +110,32 @@ public class LevelGenEngine : MonoBehaviour
 
     // Look for areas that the player could fall into and not be able to get out of or that are too tall to reach and add a series of RAMP and FILLED sections to prevent this
     // 	- this will likely consist of looking for any sections that are FILLED with nothing above them and making sure that a ramp leads to it or any other FILLED sections around them have a ramp
+    //  - also look for towers of PATH blocks and build a ramp, stairs, climbable to them
+    //  - look for paths that are too high to jump and add a ramp to them
+    //  - find "cracks" that are less than 3 blocks wide and fill them
+    //  - if a FILLED block as no filled neighbors or only diagonal filled neighbors, remove it
+    //  - find all inaccessible areas and remove blocks that will never be seen
 
     // Create a reference map to all open areas with a filled section below them and mark them SPAWNABLE
 
     // Fill all remaining sections with EMPTY
 
 
+    // Decoration
+    // - walls can be decorated
+    // - decoration can also include making things look more natural
+
+    // Gizmos
+    // - add chests
+
+    // Monsters
+    // - check how much open space in an area and add monsters based on that
+
+
     return new Room(blocks, roomSize, Vector3Int.zero);
   }
 
-  private bool IsInRoomBounds(Vector3Int roomSize, Vector3Int position, int roomMin = 0)
-  {
-    return position.x >= roomMin
-      && position.x < roomSize.x
-      && position.y >= roomMin
-      && position.y < roomSize.y
-      && position.z >= roomMin
-      && position.z < roomSize.z;
-  }
+
 
   private Block[][][] GenerateRoomBorder(Block[][][] blocks, Vector3Int roomSize)
   {
@@ -148,10 +156,7 @@ public class LevelGenEngine : MonoBehaviour
     return blocks;
   }
 
-  private bool IsBorder(Vector3Int position, Vector3Int roomSize)
-  {
-    return position.x == 0 || position.x == roomSize.x - 1 || position.y == 0 || position.y == roomSize.y - 1 || position.z == 0 || position.z == roomSize.z - 1;
-  }
+
 
   private Block[][][] CarveOutDoors(Block[][][] blocks, LevelSchema levelSchema, Vector3Int roomSize, int currentRoomNum, int numRooms)
   {
@@ -221,7 +226,7 @@ public class LevelGenEngine : MonoBehaviour
         // choose random path start height
         int pathHeight = levelSchema.doorHeight;
 
-        List<Vector3Int> path = GeneratePath(startDoorPair[0], endDoorPair[0], roomSize, levelSchema.randomPathProbability);
+        List<Vector3Int> path = GeneratePath(startDoorPair[0], endDoorPair[0], roomSize);
         foreach (Vector3Int pathPos in path)
         {
           // choose random path width
@@ -256,23 +261,7 @@ public class LevelGenEngine : MonoBehaviour
     return blocks;
   }
 
-  private Vector3Int DirTowardCenter(Vector3Int position, Vector3Int bounds)
-  {
-    // NOTE: x runs east to west, z runs north to south
-    Vector3Int direction =
-      // we are on the west wall so the direction is east
-      position.x == 0 ? new Vector3Int(1, 0, 0)
-      // we are on the east wall so the direction is west
-      : position.x == bounds.x - 1 ? new Vector3Int(-1, 0, 0)
-      // we are on the south wall so the direction is north
-      : position.z == 0 ? new Vector3Int(0, 0, 1)
-      // we are on the north wall so the direction is south
-      : new Vector3Int(0, 0, -1);
-
-    return direction;
-  }
-
-  private List<Vector3Int> GeneratePath(Block start, Block end, Vector3Int bounds, int randomWalkProbability)
+  private List<Vector3Int> GeneratePath(Block start, Block end, Vector3Int bounds)
   {
     // adjust room bounds to exclude border
     Vector3Int adjustedBounds = new Vector3Int(bounds.x - 1, bounds.y - 1, bounds.z - 1);
@@ -307,55 +296,37 @@ public class LevelGenEngine : MonoBehaviour
         break;
       }
 
-      // roll to see if we should continue or take a random step or take a random walk
-      int chance = Random.Range(0, 100);
-      if (chance < randomWalkProbability)
+      direction = DirTowardEnd(currentPos, endPos, bounds);
+      if (IsInRoomBounds(adjustedBounds, currentPos + direction, 1))
       {
-        // then move randomly for a random number of blocks
-        int randomWalkMax = Mathf.Min(adjustedBounds.x + adjustedBounds.y + adjustedBounds.z, Random.Range(5, 20));
-        int randomWalkMin = 3;
-        int randomWalkSteps = Random.Range(randomWalkMin, randomWalkMax);
-
-        // choose a random direction
-        direction = RandomDirection();
-
-        int stepCount = 0;
-        while (stepCount < randomWalkSteps)
-        {
-          // roll to see if we should changeDirection
-          int dirSwitchChance = Random.Range(0, 100);
-          if (dirSwitchChance < 5)
-            direction = RandomDirection();
-
-          if (IsInRoomBounds(adjustedBounds, currentPos + direction, 1))
-          {
-            prevPos = currentPos;
-            currentPos = currentPos + direction;
-            path.Add(currentPos);
-            stepCount++;
-          }
-        }
-      }
-      else
-      {
-        direction = DirTowardEnd(currentPos, endPos, bounds);
-        if (IsInRoomBounds(adjustedBounds, currentPos + direction, 1))
-        {
-          prevPos = currentPos;
-          currentPos = currentPos + direction;
-          path.Add(currentPos);
-        }
+        prevPos = currentPos;
+        currentPos = currentPos + direction;
+        path.Add(currentPos);
       }
     }
 
     return path;
   }
 
-
   private Vector3Int DirTowardEnd(Vector3Int currentPos, Vector3Int endPos, Vector3Int bounds)
   {
-    Vector3 directionVector = endPos - currentPos;
-    Vector3Int direction = Vector3Int.CeilToInt(new Vector3(directionVector.x, directionVector.y, directionVector.z).normalized);
+    // find direction of endPos
+    Vector3Int direction = new Vector3Int(0, 0, 0);
+
+    if (currentPos.x < endPos.x)
+      direction.x = 1;
+    else if (currentPos.x > endPos.x)
+      direction.x = -1;
+
+    if (currentPos.z < endPos.z)
+      direction.z = 1;
+    else if (currentPos.z > endPos.z)
+      direction.z = -1;
+
+    if (currentPos.y < endPos.y)
+      direction.y = 1;
+    else if (currentPos.y > endPos.y)
+      direction.y = -1;
 
     if (direction.x == 0 && direction.z == 0 && direction.y == 0)
       direction = DirTowardCenter(currentPos, bounds);
@@ -365,63 +336,95 @@ public class LevelGenEngine : MonoBehaviour
 
   private Block[][][] AddPathSupports(Block[][][] blocks)
   {
+    int nextHeightCheck = Random.Range(3, 6);
+    bool reachBottom = false;
+
     for (int x = 0; x < blocks.Length; x++)
       for (int y = 0; y < blocks[x].Length; y++)
+      {
+        // every (nextHeightCheck) levels 
+        // roll to see if paths on this level should reach the bottom
+        // chances of reaching bottom increase as y decreases
+        // once reachBottom is set to true, it will stay true
+        if (x == 0 && (y == 0 || y % nextHeightCheck == 0) && !reachBottom)
+        {
+          int chance = Random.Range(0, 100);
+          reachBottom = chance < 70 - y / blocks[x].Length * 65;
+          nextHeightCheck = Random.Range(2, 5);
+        }
+
         for (int z = 0; z < blocks[x][y].Length; z++)
         {
           Block block = blocks[x][y][z];
           if (block == null || block.type != BlockType.PATH) continue;
 
-          // if there is no block below the path block
-          if (y > 0 && blocks[x][y - 1][z] == null)
-          {
-            // add a support block
-            blocks[x][y - 1][z] = new Block(new Vector3Int(x, y - 1, z), BlockType.FILLED, Quaternion.identity);
-          }
+          // if there is no block below the path block then add support to the bottom
+          if (reachBottom && (y > 0 && blocks[x][y - 1][z] == null))
+            for (int i = y - 1; i >= 0; i--)
+              if (blocks[x][i][z] == null)
+                blocks[x][i][z] = new Block(new Vector3Int(x, i, z), BlockType.FILLED, Quaternion.identity);
+              else
+                break;
+          // if there is no block below the path block then add random num of support blocks
+          else if ((y > 0 && blocks[x][y - 1][z] == null))
+            for (int i = 1; i <= Random.Range(2, 6); i++)
+              if (blocks[x][y - i][z] == null)
+                blocks[x][y - i][z] = new Block(new Vector3Int(x, y - i, z), BlockType.FILLED, Quaternion.identity);
+              else
+                break;
         }
+      }
 
     return blocks;
   }
 
+  private Room[] PositionRooms(Room[] rooms)
+  {
+    //  - if it's the first room then just build it from scratch, else build it so that it's dimensions are adjacent to a previous room's door
+    // 	- make sure the center of the room is placed correctly so that an edge matches up and overlaps on an edge and over a door of the previous room
+    // 	- SHOULD NOT create a BORDER section over previous rooms DOOR sections
+    // 	- can overlap the edges of other rooms but cannot overlap INTO other rooms
+
+    // determine room position
+    // - if first room, position at origin
+    // - if not first room, position relative to previous room
+    // - make sure it doesn't overlap any other rooms
+
+    // 	- if overlapping with another room roll to see if we should create a door (parameterize chance)
+
+    return rooms;
+  }
 
   // utils
-  private Vector3Int RandomDirection()
+  private bool IsInRoomBounds(Vector3Int roomSize, Vector3Int position, int roomMin = 0)
   {
-    // choose a random direction
-    int randomDirection = Random.Range(0, 14);
-    switch (randomDirection)
-    {
-      case 0:
-        return new Vector3Int(1, 0, 0);
-      case 1:
-        return new Vector3Int(-1, 0, 0);
-      case 2:
-        return new Vector3Int(0, 1, 0);
-      case 3:
-        return new Vector3Int(0, -1, 0);
-      case 4:
-        return new Vector3Int(0, 0, 1);
-      case 5:
-        return new Vector3Int(0, 0, -1);
-      case 6:
-        return new Vector3Int(1, 1, 0);
-      case 7:
-        return new Vector3Int(1, -1, 0);
-      case 8:
-        return new Vector3Int(-1, 1, 0);
-      case 9:
-        return new Vector3Int(-1, -1, 0);
-      case 10:
-        return new Vector3Int(0, 1, -1);
-      case 11:
-        return new Vector3Int(0, -1, -1);
-      case 12:
-        return new Vector3Int(0, 1, 1);
-      case 13:
-        return new Vector3Int(0, -1, 1);
-      default:
-        return new Vector3Int(0, 0, 0);
-    }
+    return position.x >= roomMin
+      && position.x < roomSize.x
+      && position.y >= roomMin
+      && position.y < roomSize.y
+      && position.z >= roomMin
+      && position.z < roomSize.z;
+  }
+
+  private bool IsBorder(Vector3Int position, Vector3Int roomSize)
+  {
+    return position.x == 0 || position.x == roomSize.x - 1 || position.y == 0 || position.y == roomSize.y - 1 || position.z == 0 || position.z == roomSize.z - 1;
+  }
+
+  private Vector3Int DirTowardCenter(Vector3Int position, Vector3Int bounds)
+  {
+    // NOTE: x runs east to west, z runs north to south
+    Vector3Int direction =
+      // we are on the west wall so the direction is east
+      position.x == 0 ? new Vector3Int(1, 0, 0)
+      // we are on the east wall so the direction is west
+      : position.x == bounds.x - 1 ? new Vector3Int(-1, 0, 0)
+      // we are on the south wall so the direction is north
+      : position.z == 0 ? new Vector3Int(0, 0, 1)
+      // we are on the north wall so the direction is south
+      : new Vector3Int(0, 0, -1);
+
+    return direction;
   }
 
   private bool PathExists(List<Block[][]> paths, Block[] startPair, Block[] endPair)
@@ -467,23 +470,23 @@ public class LevelGenEngine : MonoBehaviour
     .ToArray();
   }
 
-  private Room[] PositionRooms(Room[] rooms)
+  private void PrintBlocks(Block[][][] blocks)
   {
-    //  - if it's the first room then just build it from scratch, else build it so that it's dimensions are adjacent to a previous room's door
-    // 	- make sure the center of the room is placed correctly so that an edge matches up and overlaps on an edge and over a door of the previous room
-    // 	- SHOULD NOT create a BORDER section over previous rooms DOOR sections
-    // 	- can overlap the edges of other rooms but cannot overlap INTO other rooms
-
-    // determine room position
-    // - if first room, position at origin
-    // - if not first room, position relative to previous room
-    // - make sure it doesn't overlap any other rooms
-
-    // 	- if overlapping with another room roll to see if we should create a door (parameterize chance)
-
-    return rooms;
+    for (int x = 0; x < blocks.Length; x++)
+    {
+      for (int y = 0; y < blocks[x].Length; y++)
+      {
+        for (int z = 0; z < blocks[x][y].Length; z++)
+        {
+          Block block = blocks[x][y][z];
+          if (block != null)
+            Debug.Log(block.type);
+        }
+      }
+    }
   }
 
+  // Instantiation
   private GameObject InstantiateRoom(Room room)
   {
     GameObject roomObject = new GameObject("Room");
@@ -537,20 +540,4 @@ public class LevelGenEngine : MonoBehaviour
     return blockObject;
   }
 
-  // Utils
-  private void PrintBlocks(Block[][][] blocks)
-  {
-    for (int x = 0; x < blocks.Length; x++)
-    {
-      for (int y = 0; y < blocks[x].Length; y++)
-      {
-        for (int z = 0; z < blocks[x][y].Length; z++)
-        {
-          Block block = blocks[x][y][z];
-          if (block != null)
-            Debug.Log(block.type);
-        }
-      }
-    }
-  }
 }
