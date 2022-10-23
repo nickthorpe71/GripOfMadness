@@ -265,11 +265,6 @@ public class LevelGenEngine : MonoBehaviour
           // choose random path width
           int pathWidth = Random.Range(levelSchema.pathWidthMin, levelSchema.pathWidthMax);
 
-          // 20% chance to vary path height
-          // int chance = Random.Range(0, 100);
-          // if (chance < 20)
-          //   pathHeight = Random.Range(levelSchema.pathHeightMin, levelSchema.pathHeightMax);
-
           Vector3Int pathSectionStart = new Vector3Int(pathPos.x - pathWidth / 2, pathPos.y, pathPos.z - pathWidth / 2);
           for (int i = 0; i < pathWidth; i++)
             for (int j = 0; j < pathWidth; j++)
