@@ -11,10 +11,11 @@ public class LevelGenEngine : MonoBehaviour
   public GameObject pathBlockPrefab;
   public GameObject rampBlockPrefab;
 
+  // Debug tools
+  private bool visualizePath = false;
 
   void Start()
   {
-
     LevelSchema levelSchema = new LevelSchema(
       8, // min rooms
       15, // max rooms
@@ -29,6 +30,7 @@ public class LevelGenEngine : MonoBehaviour
       3, // random path probability (%)
       0.5f // door change on room overlap
     );
+
     LevelData levelData = GenerateLevelData(levelSchema);
     InstantiateRoom(levelData.startRoom);
   }
@@ -67,9 +69,6 @@ public class LevelGenEngine : MonoBehaviour
     blocks = CarveOutDoors(blocks, levelSchema, roomSize, currentRoomNum, numRooms);
     blocks = GeneratePaths(blocks, roomSize, levelSchema);
     blocks = AddPathSupports(blocks);
-
-    // Place FILLED and RAMP sections under the PATH sections
-    // 	- will need to detect where to put RAMP sections
 
     // NOTE: This part should actually not be random,
     // it should be as if an artist were adding beautiful sculptures to the dungeon
@@ -521,7 +520,8 @@ public class LevelGenEngine : MonoBehaviour
         blockPrefab = rampBlockPrefab;
         break;
       case BlockType.PATH:
-        blockPrefab = pathBlockPrefab;
+        if (visualizePath)
+          blockPrefab = pathBlockPrefab;
         break;
       case BlockType.DOOR:
       case BlockType.ENTRANCE:
