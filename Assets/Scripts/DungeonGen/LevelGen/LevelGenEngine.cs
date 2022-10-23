@@ -14,7 +14,20 @@ public class LevelGenEngine : MonoBehaviour
 
   void Start()
   {
-    LevelSchema levelSchema = new LevelSchema(8, 15, new Vector3Int(8, 5, 8), new Vector3Int(62, 52, 62), 0.5f);
+
+    LevelSchema levelSchema = new LevelSchema(
+      8,
+      15,
+      new Vector3Int(8, 5, 8),
+      new Vector3Int(62, 52, 62),
+      2,
+      3,
+      3,
+      2 * Random.Range(2, 4),
+      3,
+      3 * Random.Range(2, 5),
+      0.5f
+    );
     LevelData levelData = GenerateLevelData(levelSchema);
     InstantiateRoom(levelData.startRoom);
   }
@@ -51,17 +64,49 @@ public class LevelGenEngine : MonoBehaviour
     Block[][][] blocks = new Block[roomSize.x][][];
     blocks = GenerateRoomBorder(blocks, roomSize);
     blocks = CarveOutDoors(blocks, levelSchema, roomSize, currentRoomNum, numRooms);
-    blocks = GeneratePaths(blocks, roomSize, levelSchema.doorHeight, levelSchema.doorWidth);
+    blocks = GeneratePaths(blocks, roomSize, levelSchema);
 
 
     // Place FILLED and RAMP sections under the PATH sections
     // 	- will need to detect where to put RAMP sections
 
+    // NOTE: This part should actually not be random,
+    // it should be as if an artist were adding beautiful sculptures to the dungeon
+    // look up pattern algorithms, investigate how humans create sculptures
+    // look up how humans create architecture
     // Randomly fill other sections of the room with FILLED sections
     // 	- could potentially have prebuilt shapes, things coming from the ground, etc.
 
+    // --- Themes ---
+    // INFO:
+    // A function will take in a number of theme elements, each with a probability, and the existing blocks, and return new blocks with the themes applied.
+    // Themes provide a pattern consisting of filled and empty (non fillable) spaces.
+    // Themes should take a size (small, med, large) to specify how large the pattern should be.
+    //  - This size will dictate the random range of the size of each application of the pattern and that range will also take into account the size of the room.
+    // Some can be placed near a path and have path blocks in them to ensure the player can traverse them.
 
-    // Check for any hollow/inaccessible sections (surrounded by other sections) and fill them
+    // *- stonehenge type structures
+    // *- towers
+    // *- pavilions
+    // *- pyramids
+    // *- arches
+    // *- square structures
+    // *- domes
+    // *- layered structures with rooms at the top
+    // *- spherical structures
+    // *- triangular prism roof structures with pillars
+    // *- diagonal vertical beams
+    // *- diagonal horizontal beams
+    // *- bridges (should connect to a path and have path above them)
+    // *- horizontal beams
+    // *- flat square surfaces (attached to the ground)
+    // *- flat circular surfaces (attached to the ground)
+    // *- flat square floating platforms
+    // *- balconies from walls
+    // *- lots of open space (goes in an puts a bunch of empty space)
+
+
+    // Check for any hollow/inaccessible sections (surrounded by other sections) and remove them
 
     // Look for areas that the player could fall into and not be able to get out of or that are too tall to reach and add a series of RAMP and FILLED sections to prevent this
     // 	- this will likely consist of looking for any sections that are FILLED with nothing above them and making sure that a ramp leads to it or any other FILLED sections around them have a ramp
@@ -154,7 +199,7 @@ public class LevelGenEngine : MonoBehaviour
     return blocks;
   }
 
-  private Block[][][] GeneratePaths(Block[][][] blocks, Vector3Int roomSize, int doorHeight, int doorWidth)
+  private Block[][][] GeneratePaths(Block[][][] blocks, Vector3Int roomSize, LevelSchema levelSchema)
   {
     // get all doors
     // doors are represented by the group of blocks at the bottom of the door opening
@@ -174,26 +219,22 @@ public class LevelGenEngine : MonoBehaviour
           continue;
 
         // choose random path start height
-        int pathHeight = doorHeight;
+        int pathHeight = levelSchema.doorHeight;
 
         List<Vector3Int> path = GenerateRandomPath(startDoorPair[0], endDoorPair[0], roomSize);
         foreach (Vector3Int pathPos in path)
         {
           // choose random path width
-          int pathWidth = Random.Range(doorWidth + 1, doorWidth * Random.Range(2, 4));
+          int pathWidth = Random.Range(levelSchema.pathWidthMin, levelSchema.pathWidthMax);
           // 20% chance to vary path height
           int chance = Random.Range(0, 100);
           if (chance < 20)
-            pathHeight = Random.Range(doorHeight, doorHeight * Random.Range(2, 5));
-
-          // Block targetBlock = blocks[pathPos.x][pathPos.y][pathPos.z];
-          // if (targetBlock == null || targetBlock.type == BlockType.EMPTY)
-          //   blocks[pathPos.x][pathPos.y][pathPos.z] = new Block(pathPos, BlockType.PATH, Quaternion.identity);
+            pathHeight = Random.Range(levelSchema.pathHeightMin, levelSchema.pathHeightMax);
 
           Vector3Int pathSectionStart = new Vector3Int(pathPos.x - pathWidth / 2, pathPos.y, pathPos.z - pathWidth / 2);
           for (int i = 0; i < pathWidth; i++)
             for (int j = 0; j < pathWidth; j++)
-              for (int k = 0; k < doorHeight; k++)
+              for (int k = 0; k < levelSchema.doorHeight; k++)
               {
                 int adjustedX = pathSectionStart.x + i;
                 int adjustedY = pathSectionStart.y + k;
@@ -211,8 +252,6 @@ public class LevelGenEngine : MonoBehaviour
         // add start and end points to list of paths that have been generated
         paths.Add(new Block[2][] { startDoorPair, endDoorPair });
       }
-
-    Debug.Log($"num doors: {doors.Length} | num paths: {paths.Count}");
 
     return blocks;
   }
@@ -258,15 +297,12 @@ public class LevelGenEngine : MonoBehaviour
 
     // then move in the direction of the end
     Vector3Int endPos = end.relativePosition + DirTowardCenter(end.relativePosition, bounds);
-    Debug.Log("endPos: " + endPos);
+
     while (currentPos != endPos)
     {
       currentCount++;
       if (currentCount > maxCount)
-      {
-        Debug.Log("max count reached");
         break;
-      }
 
       // roll to see if we should continue or take a random step or take a random walk
       int chance = Random.Range(0, 100);
@@ -302,7 +338,6 @@ public class LevelGenEngine : MonoBehaviour
         if (IsInRoomBounds(adjustedBounds, currentPos + direction, 1))
         {
           currentPos = currentPos + direction;
-          Debug.Log("current pos: " + currentPos);
           path.Add(currentPos);
         }
       }
