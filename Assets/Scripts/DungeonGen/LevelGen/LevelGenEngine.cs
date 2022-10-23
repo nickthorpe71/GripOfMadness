@@ -57,17 +57,20 @@ public class LevelGenEngine : MonoBehaviour
   private Room GenerateRoom(LevelSchema levelSchema, int currentRoomNum, int numRooms)
   {
     // determine room size
-    Vector3Int roomSize = new Vector3Int(
-      Random.Range(levelSchema.minRoomSize.x, levelSchema.maxRoomSize.x + 1),
-      Random.Range(levelSchema.minRoomSize.y, levelSchema.maxRoomSize.y + 1),
-      Random.Range(levelSchema.minRoomSize.z, levelSchema.maxRoomSize.z + 1)
-    );
+    int roomWidth = Random.Range(levelSchema.minRoomSize.x, levelSchema.maxRoomSize.x + 1);
+    int roomDepth = (int)Mathf.Max(Mathf.Floor(roomWidth / 2), Random.Range(levelSchema.minRoomSize.z, levelSchema.maxRoomSize.z + 1));
+    int roomHeight = (int)Mathf.Min(Mathf.Floor(roomWidth * 2), Random.Range(levelSchema.minRoomSize.y, levelSchema.maxRoomSize.y + 1));
+    Vector3Int roomSize = new Vector3Int(roomWidth, roomHeight, roomDepth);
 
     Block[][][] blocks = new Block[roomSize.x][][];
     blocks = GenerateRoomBorder(blocks, roomSize);
     blocks = CarveOutDoors(blocks, levelSchema, roomSize, currentRoomNum, numRooms);
+    blocks = AddPlatformsInFrontOfDoors(blocks, levelSchema, roomSize);
     blocks = GeneratePaths(blocks, roomSize, levelSchema);
     blocks = AddPathSupports(blocks);
+
+    // TODO: Add path option to loop around room to get to other door
+    // roll before creating a path to see if it should go around outside or through the room
 
     // NOTE: This part should actually not be random,
     // it should be as if an artist were adding beautiful sculptures to the dungeon
@@ -115,6 +118,8 @@ public class LevelGenEngine : MonoBehaviour
     //  - find "cracks" that are less than 3 blocks wide and fill them
     //  - if a FILLED block as no filled neighbors or only diagonal filled neighbors, remove it
     //  - find all inaccessible areas and remove blocks that will never be seen
+    //  - if there is a space who's x and z neighbors contain > 2 FILLED blocks, fill it
+    //  - if a block has < 2 FILLED neighbors, or > 5 FILLED neighbors, remove it
 
     // Create a reference map to all open areas with a filled section below them and mark them SPAWNABLE
 
@@ -124,6 +129,7 @@ public class LevelGenEngine : MonoBehaviour
     // Decoration
     // - walls can be decorated
     // - decoration can also include making things look more natural
+    // - Could go through and replace sets of FILLED blocks with decorative objects that take up the same amount of space
 
     // Gizmos
     // - add chests
@@ -134,8 +140,6 @@ public class LevelGenEngine : MonoBehaviour
 
     return new Room(blocks, roomSize, Vector3Int.zero);
   }
-
-
 
   private Block[][][] GenerateRoomBorder(Block[][][] blocks, Vector3Int roomSize)
   {
@@ -155,8 +159,6 @@ public class LevelGenEngine : MonoBehaviour
     }
     return blocks;
   }
-
-
 
   private Block[][][] CarveOutDoors(Block[][][] blocks, LevelSchema levelSchema, Vector3Int roomSize, int currentRoomNum, int numRooms)
   {
@@ -204,6 +206,30 @@ public class LevelGenEngine : MonoBehaviour
     return blocks;
   }
 
+  private Block[][][] AddPlatformsInFrontOfDoors(Block[][][] blocks, LevelSchema levelSchema, Vector3Int roomSize)
+  {
+    // add platforms in front of doors
+    for (int x = 0; x < roomSize.x; x++)
+      for (int y = 0; y < roomSize.y; y++)
+        for (int z = 0; z < roomSize.z; z++)
+        {
+          Block targetBlock = blocks[x][y][z];
+          if (targetBlock == null) continue;
+          if (targetBlock.type == BlockType.DOOR || targetBlock.type == BlockType.ENTRANCE || targetBlock.type == BlockType.EXIT)
+          {
+            Vector3Int direction = DirTowardCenter(new Vector3Int(x, y, z), roomSize);
+            for (int i = 1; i <= 2; i++)
+            {
+              Vector3Int platformPos = targetBlock.relativePosition + (direction * i) + new Vector3Int(0, -1, 0);
+              if (IsInRoomBounds(roomSize, platformPos) && blocks[platformPos.x][platformPos.y][platformPos.z] == null)
+                blocks[platformPos.x][platformPos.y][platformPos.z] = new Block(platformPos, BlockType.FILLED, Quaternion.identity);
+            }
+          }
+        }
+
+    return blocks;
+  }
+
   private Block[][][] GeneratePaths(Block[][][] blocks, Vector3Int roomSize, LevelSchema levelSchema)
   {
     // get all doors
@@ -226,15 +252,23 @@ public class LevelGenEngine : MonoBehaviour
         // choose random path start height
         int pathHeight = levelSchema.doorHeight;
 
-        List<Vector3Int> path = GeneratePath(startDoorPair[0], endDoorPair[0], roomSize);
+        // choose direct path or perimeter path
+        bool directPath = Random.Range(0, 2) == 0;
+        List<Vector3Int> path = directPath
+          ? GenerateDirectPath(startDoorPair[0], endDoorPair[0], roomSize)
+          : GenerateDirectPath(startDoorPair[0], endDoorPair[0], roomSize);
+
+        // GeneratePerimeterPath(startDoorPair[0], endDoorPair[0], roomSize);
+
         foreach (Vector3Int pathPos in path)
         {
           // choose random path width
           int pathWidth = Random.Range(levelSchema.pathWidthMin, levelSchema.pathWidthMax);
+
           // 20% chance to vary path height
-          int chance = Random.Range(0, 100);
-          if (chance < 20)
-            pathHeight = Random.Range(levelSchema.pathHeightMin, levelSchema.pathHeightMax);
+          // int chance = Random.Range(0, 100);
+          // if (chance < 20)
+          //   pathHeight = Random.Range(levelSchema.pathHeightMin, levelSchema.pathHeightMax);
 
           Vector3Int pathSectionStart = new Vector3Int(pathPos.x - pathWidth / 2, pathPos.y, pathPos.z - pathWidth / 2);
           for (int i = 0; i < pathWidth; i++)
@@ -261,33 +295,73 @@ public class LevelGenEngine : MonoBehaviour
     return blocks;
   }
 
-  private List<Vector3Int> GeneratePath(Block start, Block end, Vector3Int bounds)
+  private List<Vector3Int> GenerateDirectPath(Block start, Block end, Vector3Int bounds)
   {
     // adjust room bounds to exclude border
     Vector3Int adjustedBounds = new Vector3Int(bounds.x - 1, bounds.y - 1, bounds.z - 1);
-    List<Vector3Int> path = new List<Vector3Int>();
 
-    // get the direction of the door
+    List<Vector3Int> path = new List<Vector3Int>();
     Vector3Int direction = DirTowardCenter(start.relativePosition, bounds);
     Vector3Int currentPos = start.relativePosition;
     Vector3Int prevPos = start.relativePosition;
-
-    // then move in the direction of the end
     Vector3Int endPos = end.relativePosition + DirTowardCenter(end.relativePosition, bounds);
-
     int maxCount = 300;
     int currentCount = 0;
 
     // step into center of the room 3 blocks
-
-    for (int i = 0; i < 3; i++)
+    int stepsIntoCenter = Mathf.Min(adjustedBounds.x, adjustedBounds.z) - 2;
+    for (int i = 0; i < Random.Range(2, stepsIntoCenter); i++)
     {
       prevPos = currentPos;
       currentPos = currentPos + direction;
       path.Add(currentPos);
     }
 
+    // step along the path until the end position is reached
     while (currentPos != endPos)
+    {
+      currentCount++;
+      if (currentCount > maxCount)
+      {
+        Debug.Log("---------------- Max count reached ----------------");
+        break;
+      }
+
+      direction = DirTowardEnd(currentPos, endPos, bounds);
+      if (IsInRoomBounds(adjustedBounds, currentPos + direction, 1))
+      {
+        prevPos = currentPos;
+        currentPos = currentPos + direction;
+        path.Add(currentPos);
+      }
+    }
+
+    return path;
+  }
+
+  private List<Vector3Int> GeneratePerimeterPath(Block start, Block end, Vector3Int bounds)
+  {
+    // adjust room bounds to exclude border
+    Vector3Int adjustedBounds = new Vector3Int(bounds.x - 1, bounds.y - 1, bounds.z - 1);
+
+    List<Vector3Int> path = new List<Vector3Int>();
+    Vector3Int direction = DirTowardCenter(start.relativePosition, bounds);
+    Vector3Int currentPos = start.relativePosition;
+    Vector3Int prevPos = start.relativePosition;
+    Vector3Int endPos = end.relativePosition + DirTowardCenter(end.relativePosition, bounds);
+    int maxCount = 300;
+    int currentCount = 0;
+
+    // step into center of the room 2 blocks
+    for (int i = 0; i < 2; i++)
+    {
+      prevPos = currentPos;
+      currentPos = currentPos + direction;
+      path.Add(currentPos);
+    }
+
+    // move along the perimeter of the room until x or z is equal to the end position
+    while (currentPos.x != endPos.x || currentPos.z != endPos.z)
     {
       currentCount++;
       if (currentCount > maxCount)
