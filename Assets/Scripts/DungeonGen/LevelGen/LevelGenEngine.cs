@@ -21,8 +21,10 @@ public class LevelGenEngine : MonoBehaviour
       15, // max rooms
       new Vector3Int(8, 5, 8), // min room size
       new Vector3Int(62, 44, 62), // max room size
-      2, // door width
-      3, // door height
+      2, // min door width
+      2, // max door width // TODO: add support for doors with width > 2
+      3, // min door height
+      6, // max door height
       3, // min path width
       2 * Random.Range(2, 4), // max path width
       3, // min path height
@@ -72,6 +74,16 @@ public class LevelGenEngine : MonoBehaviour
     // TODO: Add path option to loop around room to get to other door
     // roll before creating a path to see if it should go around outside or through the room
 
+    // TODO: add support for doors with width > 2
+    // - this will likely require tracking door sizes in the levelSchema (or level data or something)
+
+    // TODO: SMOOTHING
+    //  - if there is a space who's x and z neighbors contain > 2 FILLED blocks, fill it
+    //  - if a block has > 5 FILLED neighbors, remove it
+    //  - of a block's y neighbors are both FILLED, fill it
+    //  - if a FILLED block as no filled neighbors or only diagonal filled neighbors, remove it
+
+    // TODO: add structures
     // NOTE: This part should actually not be random,
     // it should be as if an artist were adding beautiful sculptures to the dungeon
     // look up pattern algorithms, investigate how humans create sculptures
@@ -109,32 +121,26 @@ public class LevelGenEngine : MonoBehaviour
     // *- lots of open space (goes in an puts a bunch of empty space)
 
 
-    // Check for any hollow/inaccessible sections (surrounded by other sections) and remove them
+    // TODO: ACCESSABILITY:
+    // - Look for areas that the player could fall into and not be able to get out of or that are too tall to reach and add a series of RAMP and FILLED sections to prevent this
+    // 	  - this will likely consist of looking for any sections that are FILLED with nothing above them and making sure that a ramp leads to it or any other FILLED sections around them have a ramp
+    // - look for paths that are too high to jump and add a ramp to them
+    // - find "cracks" that are less than 3 blocks wide and fill them
+    // - also look for towers of PATH blocks and build a ramp, stairs, climbable to them
 
-    // Look for areas that the player could fall into and not be able to get out of or that are too tall to reach and add a series of RAMP and FILLED sections to prevent this
-    // 	- this will likely consist of looking for any sections that are FILLED with nothing above them and making sure that a ramp leads to it or any other FILLED sections around them have a ramp
-    //  - also look for towers of PATH blocks and build a ramp, stairs, climbable to them
-    //  - look for paths that are too high to jump and add a ramp to them
-    //  - find "cracks" that are less than 3 blocks wide and fill them
-    //  - if a FILLED block as no filled neighbors or only diagonal filled neighbors, remove it
-    //  - find all inaccessible areas and remove blocks that will never be seen
-    //  - if there is a space who's x and z neighbors contain > 2 FILLED blocks, fill it
-    //  - if a block has < 2 FILLED neighbors, or > 5 FILLED neighbors, remove it
+    // TODO: Create a reference map to all open areas with a filled section below them and mark them SPAWNABLE
 
-    // Create a reference map to all open areas with a filled section below them and mark them SPAWNABLE
+    // TODO: Fill all remaining sections with EMPTY
 
-    // Fill all remaining sections with EMPTY
-
-
-    // Decoration
+    // TODO: Decoration
     // - walls can be decorated
     // - decoration can also include making things look more natural
     // - Could go through and replace sets of FILLED blocks with decorative objects that take up the same amount of space
 
-    // Gizmos
+    // TODO: Gizmos
     // - add chests
 
-    // Monsters
+    // TODO: Monsters
     // - check how much open space in an area and add monsters based on that
 
 
@@ -168,39 +174,50 @@ public class LevelGenEngine : MonoBehaviour
     int minDoorsToPlace = (currentRoomNum <= numRooms / 2) ? 2 : 1;
     int maxDoorsToPlace = Mathf.Min(5, Mathf.Max(2, (int)Mathf.Floor((roomSize.x + roomSize.y + roomSize.z) / 10)));
     int doorsToPlace = Random.Range(minDoorsToPlace, maxDoorsToPlace);
-    int distanceFromTop = levelSchema.doorHeight + 1;
 
     for (int i = 0; i < doorsToPlace; i++)
     {
-      // choose a random side of the room to place the door
-      int side = Random.Range(0, 4);
+      int doorWidth = Random.Range(levelSchema.MinDoorWidth, levelSchema.MaxDoorWidth + 1);
+      int doorHeight = Mathf.Min(roomSize.y - 2, Random.Range(levelSchema.MinDoorHeight, levelSchema.MaxDoorHeight + 1));
+      int side = Random.Range(0, 4); // 0 = North, 1 = South, 2 = East, 3 = West
 
       // choose a random position along the side
       // - ensure that the door is not too close to the top or bottom of the room
-      // NOTE: 0 = North, 1 = South, 2 = East, 3 = West
-      int randomX = (side == 0 || side == 1) ? Random.Range(levelSchema.doorWidth, roomSize.x - levelSchema.doorWidth) : (side == 2) ? 0 : roomSize.x - 1;
-      int randomY = Random.Range(1, roomSize.y - distanceFromTop);
-      int randomZ = (side == 2 || side == 3) ? Random.Range(levelSchema.doorWidth, roomSize.z - levelSchema.doorWidth) : (side == 0) ? 0 : roomSize.z - 1;
+      int maxX = roomSize.x - doorWidth;
+      int randomStartX =
+        (side == 0 || side == 1) ? Random.Range(1, maxX)
+        : (side == 2) ? 0
+        : roomSize.x - 1;
+
+      int randomStartY = Random.Range(1, roomSize.y - 1 - doorHeight);
+
+      int maxZ = roomSize.z - doorWidth;
+      int randomStartZ =
+        (side == 2 || side == 3) ? Random.Range(1, maxZ)
+        : (side == 0) ? 0
+        : roomSize.z - 1;
 
       // place the door blocks
       // 	- if this is the first room make one of the doors the entrance to the level
       // 	-	if this is the last room make one of the doors the level exit
-      for (int j = 0; j < levelSchema.doorHeight; j++)
-      {
-        // set the bottom of the door to DOOR/ENTRANCE/EXIT blocks and the rest to EMPTY blocks
-        BlockType type = BlockType.EMPTY;
-        if (j == 0)
-          type = (i == 0 && currentRoomNum == 0) ? BlockType.ENTRANCE : (i == doorsToPlace - 1 && currentRoomNum == numRooms - 1) ? BlockType.EXIT : BlockType.DOOR;
+      for (int j = 0; j < doorHeight; j++)
+        for (int k = 0; k < doorWidth; k++)
+        {
+          // set the bottom of the door to DOOR/ENTRANCE/EXIT blocks and the rest to EMPTY blocks
+          BlockType type = BlockType.EMPTY;
+          if (j == 0)
+            type = (i == 0 && currentRoomNum == 0) ? BlockType.ENTRANCE
+            : (i == doorsToPlace - 1 && currentRoomNum == numRooms - 1) ? BlockType.EXIT
+            : BlockType.DOOR;
 
-        int adjustedX = (side == 0 || side == 1) ? randomX + 1 : randomX;
-        int adjustedZ = (side == 2 || side == 3) ? randomZ + 1 : randomZ;
+          int adjustedX = (side == 0 || side == 1) ? randomStartX + k : randomStartX;
+          int adjustedY = randomStartY + j;
+          int adjustedZ = (side == 2 || side == 3) ? randomStartZ + k : randomStartZ;
+          Vector3Int adjustedPos = new Vector3Int(adjustedX, adjustedY, adjustedZ);
 
-        Vector3Int block1Pos = new Vector3Int(randomX, randomY + j, randomZ);
-        Vector3Int block2Pos = new Vector3Int(adjustedX, randomY + j, adjustedZ);
-
-        blocks[randomX][randomY + j][randomZ] = new Block(block1Pos, type, Quaternion.identity);
-        blocks[adjustedX][randomY + j][adjustedZ] = new Block(block2Pos, type, Quaternion.identity);
-      }
+          if (blocks[adjustedPos.x][adjustedPos.y][adjustedPos.z].type == BlockType.BORDER)
+            blocks[adjustedPos.x][adjustedPos.y][adjustedPos.z] = new Block(adjustedPos, type, Quaternion.identity);
+        }
     }
 
     return blocks;
@@ -249,9 +266,6 @@ public class LevelGenEngine : MonoBehaviour
         if (PathExists(paths, startDoorPair, endDoorPair))
           continue;
 
-        // choose random path start height
-        int pathHeight = levelSchema.doorHeight;
-
         // choose direct path or perimeter path
         bool directPath = Random.Range(0, 2) == 0;
         List<Vector3Int> path = directPath
@@ -268,7 +282,7 @@ public class LevelGenEngine : MonoBehaviour
           Vector3Int pathSectionStart = new Vector3Int(pathPos.x - pathWidth / 2, pathPos.y, pathPos.z - pathWidth / 2);
           for (int i = 0; i < pathWidth; i++)
             for (int j = 0; j < pathWidth; j++)
-              for (int k = 0; k < levelSchema.doorHeight; k++)
+              for (int k = 0; k < levelSchema.MinDoorHeight; k++)
               {
                 int adjustedX = pathSectionStart.x + i;
                 int adjustedY = pathSectionStart.y + k;
@@ -496,6 +510,7 @@ public class LevelGenEngine : MonoBehaviour
     return direction;
   }
 
+  // TODO: Once doors are being saved, adjust to check all door blocks in door
   private bool PathExists(List<Block[][]> paths, Block[] startPair, Block[] endPair)
   {
     foreach (Block[][] path in paths)
@@ -516,6 +531,7 @@ public class LevelGenEngine : MonoBehaviour
     return false;
   }
 
+  // TODO: Once doors are saved, we can pass in door width and replace (x.Index / 2) with (x.Index / doorWidth)
   private Block[][] GetDoors(Block[][][] blocks)
   {
     // get all doors
