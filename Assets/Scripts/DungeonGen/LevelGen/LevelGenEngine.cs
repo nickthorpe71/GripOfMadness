@@ -59,7 +59,8 @@ public class LevelGenEngine : MonoBehaviour
     // determine room size
     int roomWidth = Random.Range(levelSchema.minRoomSize.x, levelSchema.maxRoomSize.x + 1);
     int roomDepth = (int)Mathf.Max(Mathf.Floor(roomWidth / 2), Random.Range(levelSchema.minRoomSize.z, levelSchema.maxRoomSize.z + 1));
-    int roomHeight = (int)Mathf.Min(Mathf.Floor(roomWidth * 2), Random.Range(levelSchema.minRoomSize.y, levelSchema.maxRoomSize.y + 1));
+    int smallest = Mathf.Min(roomWidth, roomDepth);
+    int roomHeight = (int)Mathf.Min(Mathf.Floor(smallest * 1.5f), Random.Range(levelSchema.minRoomSize.y, levelSchema.maxRoomSize.y + 1));
     Vector3Int roomSize = new Vector3Int(roomWidth, roomHeight, roomDepth);
 
     Block[][][] blocks = new Block[roomSize.x][][];
@@ -78,6 +79,7 @@ public class LevelGenEngine : MonoBehaviour
     //  - if a block has >=  FILLED neighbors, remove it fill it
     //  - if a block has 6 FILLED neighbors, remove it
     //  - of a block's y neighbors are both FILLED, fill it
+    //  - (to fill vertical gaps of 2: if a block has 1 FILLED y neighbor and a gap(null/EMPTY) followed by a FILLED in the opposite y direction, fill the two blocks in the opposite y direction
     //  - if a FILLED block as no filled neighbors, remove it
 
     // TODO: add structures
