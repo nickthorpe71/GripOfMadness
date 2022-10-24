@@ -78,13 +78,12 @@ namespace DungeonGen
     public int MaxDoorWidth { get; }
     public int MinDoorHeight { get; }
     public int MaxDoorHeight { get; }
-    public int pathWidthMin { get; }
+    public int chanceOfGiantDoor { get; }
     public int pathWidthMax { get; }
-    public int pathHeightMin { get; }
-    public int pathHeightMax { get; }
     public float doorChanceOnRoomOverlap { get; }
+    public Block[][][] doors { get; set; }
 
-    public LevelSchema(int minRooms, int maxRooms, Vector3Int minRoomSize, Vector3Int maxRoomSize, int minDoorWidth, int maxDoorWidth, int minDoorHeight, int maxDoorHeight, int pathWidthMin, int pathWidthMax, int pathHeightMin, int pathHeightMax, float doorChanceOnRoomOverlap)
+    public LevelSchema(int minRooms, int maxRooms, Vector3Int minRoomSize, Vector3Int maxRoomSize, int minDoorWidth, int maxDoorWidth, int minDoorHeight, int maxDoorHeight, int chanceOfGiantDoor, int pathWidthMax, float doorChanceOnRoomOverlap)
     {
       this.minRooms = minRooms;
       this.maxRooms = maxRooms;
@@ -94,10 +93,8 @@ namespace DungeonGen
       this.MaxDoorWidth = maxDoorWidth;
       this.MinDoorHeight = minDoorHeight;
       this.MaxDoorHeight = maxDoorHeight;
-      this.pathWidthMin = pathWidthMin;
+      this.chanceOfGiantDoor = chanceOfGiantDoor;
       this.pathWidthMax = pathWidthMax;
-      this.pathHeightMin = pathHeightMin;
-      this.pathHeightMax = pathHeightMax;
       this.doorChanceOnRoomOverlap = doorChanceOnRoomOverlap;
     }
   }

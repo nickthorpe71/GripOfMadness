@@ -22,13 +22,11 @@ public class LevelGenEngine : MonoBehaviour
       new Vector3Int(8, 5, 8), // min room size
       new Vector3Int(62, 44, 62), // max room size
       2, // min door width
-      2, // max door width // TODO: add support for doors with width > 2
+      5, // max door width // TODO: add support for doors with width > 2
       3, // min door height
       6, // max door height
-      3, // min path width
+      10, // chance of giant door
       2 * Random.Range(2, 4), // max path width
-      3, // min path height
-      3 * Random.Range(2, 5), // max path height
       0.5f // door change on room overlap
     );
 
@@ -71,17 +69,16 @@ public class LevelGenEngine : MonoBehaviour
     blocks = GeneratePaths(blocks, roomSize, levelSchema);
     blocks = AddPathSupports(blocks);
 
+    // TODO: add skylights
+
     // TODO: Add path option to loop around room to get to other door
     // roll before creating a path to see if it should go around outside or through the room
 
-    // TODO: add support for doors with width > 2
-    // - this will likely require tracking door sizes in the levelSchema (or level data or something)
-
     // TODO: SMOOTHING
-    //  - if there is a space who's x and z neighbors contain > 2 FILLED blocks, fill it
-    //  - if a block has > 5 FILLED neighbors, remove it
+    //  - if a block has >=  FILLED neighbors, remove it fill it
+    //  - if a block has 6 FILLED neighbors, remove it
     //  - of a block's y neighbors are both FILLED, fill it
-    //  - if a FILLED block as no filled neighbors or only diagonal filled neighbors, remove it
+    //  - if a FILLED block as no filled neighbors, remove it
 
     // TODO: add structures
     // NOTE: This part should actually not be random,
@@ -175,11 +172,17 @@ public class LevelGenEngine : MonoBehaviour
     int maxDoorsToPlace = Mathf.Min(5, Mathf.Max(2, (int)Mathf.Floor((roomSize.x + roomSize.y + roomSize.z) / 10)));
     int doorsToPlace = Random.Range(minDoorsToPlace, maxDoorsToPlace);
 
+    levelSchema.doors = new Block[doorsToPlace][][];
+
     for (int i = 0; i < doorsToPlace; i++)
     {
-      int doorWidth = Random.Range(levelSchema.MinDoorWidth, levelSchema.MaxDoorWidth + 1);
-      int doorHeight = Mathf.Min(roomSize.y - 2, Random.Range(levelSchema.MinDoorHeight, levelSchema.MaxDoorHeight + 1));
       int side = Random.Range(0, 4); // 0 = North, 1 = South, 2 = East, 3 = West
+      // roll to see if we should generate a giant door
+      bool giantDoor = Random.Range(0, 100) < levelSchema.chanceOfGiantDoor;
+      int maxWidth = giantDoor ? (side == 0 || side == 1) ? roomSize.x - 1 : roomSize.z - 1 : levelSchema.MaxDoorWidth;
+      int doorWidth = Random.Range(levelSchema.MinDoorWidth, maxWidth);
+      int doorHeight = Mathf.Min(roomSize.y - 2, Random.Range(levelSchema.MinDoorHeight, giantDoor ? roomSize.y - 1 : levelSchema.MaxDoorHeight));
+      levelSchema.doors[i] = new Block[doorHeight][];
 
       // choose a random position along the side
       // - ensure that the door is not too close to the top or bottom of the room
@@ -201,6 +204,8 @@ public class LevelGenEngine : MonoBehaviour
       // 	- if this is the first room make one of the doors the entrance to the level
       // 	-	if this is the last room make one of the doors the level exit
       for (int j = 0; j < doorHeight; j++)
+      {
+        levelSchema.doors[i][j] = new Block[doorWidth];
         for (int k = 0; k < doorWidth; k++)
         {
           // set the bottom of the door to DOOR/ENTRANCE/EXIT blocks and the rest to EMPTY blocks
@@ -215,9 +220,11 @@ public class LevelGenEngine : MonoBehaviour
           int adjustedZ = (side == 2 || side == 3) ? randomStartZ + k : randomStartZ;
           Vector3Int adjustedPos = new Vector3Int(adjustedX, adjustedY, adjustedZ);
 
-          if (blocks[adjustedPos.x][adjustedPos.y][adjustedPos.z].type == BlockType.BORDER)
-            blocks[adjustedPos.x][adjustedPos.y][adjustedPos.z] = new Block(adjustedPos, type, Quaternion.identity);
+          Block doorBlock = new Block(adjustedPos, type, Quaternion.identity);
+          blocks[adjustedPos.x][adjustedPos.y][adjustedPos.z] = doorBlock;
+          levelSchema.doors[i][j][k] = doorBlock;
         }
+      }
     }
 
     return blocks;
@@ -235,7 +242,9 @@ public class LevelGenEngine : MonoBehaviour
           if (targetBlock.type == BlockType.DOOR || targetBlock.type == BlockType.ENTRANCE || targetBlock.type == BlockType.EXIT)
           {
             Vector3Int direction = DirTowardCenter(new Vector3Int(x, y, z), roomSize);
-            for (int i = 1; i <= 2; i++)
+            int smallestSide = Mathf.Min(roomSize.x, roomSize.z);
+            int platformLength = Mathf.Min(Random.Range(1, 4), smallestSide - 2);
+            for (int i = 1; i <= platformLength; i++)
             {
               Vector3Int platformPos = targetBlock.relativePosition + (direction * i) + new Vector3Int(0, -1, 0);
               if (IsInRoomBounds(roomSize, platformPos) && blocks[platformPos.x][platformPos.y][platformPos.z] == null)
@@ -252,32 +261,38 @@ public class LevelGenEngine : MonoBehaviour
     // get all doors
     // doors are represented by the group of blocks at the bottom of the door opening
     // the doors array is a list of these groups of blocks
-    Block[][] doors = GetDoors(blocks);
-    List<Block[][]> paths = new List<Block[][]>();
+    Block[][][] doors = levelSchema.doors;
+    List<Block[][][]> paths = new List<Block[][][]>();
 
-    foreach (Block[] startDoorPair in doors)
-      foreach (Block[] endDoorPair in doors)
+    foreach (Block[][] startDoor in doors)
+      foreach (Block[][] endDoor in doors)
       {
         // if the start and end doors are the same, skip this iteration
-        if (startDoorPair[0].relativePosition == endDoorPair[0].relativePosition && startDoorPair[1].relativePosition == endDoorPair[1].relativePosition)
+        if (startDoor[0][0].relativePosition == endDoor[0][0].relativePosition && startDoor[0][1].relativePosition == endDoor[0][1].relativePosition)
           continue;
 
         // if there is already a path between the start and end door
-        if (PathExists(paths, startDoorPair, endDoorPair))
+        if (PathExists(paths, startDoor, endDoor))
           continue;
+
+        // get start and end door center blocks
+        Block startDoorCenter = startDoor[0][(int)Mathf.Floor(startDoor[0].Length / 2)];
+        Block endDoorCenter = endDoor[0][(int)Mathf.Floor(endDoor[0].Length / 2)];
 
         // choose direct path or perimeter path
         bool directPath = Random.Range(0, 2) == 0;
         List<Vector3Int> path = directPath
-          ? GenerateDirectPath(startDoorPair[0], endDoorPair[0], roomSize)
-          : GenerateDirectPath(startDoorPair[0], endDoorPair[0], roomSize);
+          ? GenerateDirectPath(startDoorCenter, endDoorCenter, roomSize)
+          : GenerateDirectPath(startDoorCenter, endDoorCenter, roomSize);
 
-        // GeneratePerimeterPath(startDoorPair[0], endDoorPair[0], roomSize);
+        // GeneratePerimeterPath(startDoorCenter, endDoorCenter, roomSize);
 
         foreach (Vector3Int pathPos in path)
         {
           // choose random path width
-          int pathWidth = Random.Range(levelSchema.pathWidthMin, levelSchema.pathWidthMax);
+          int minWidth = Mathf.Max(startDoor[0].Length, endDoor[0].Length) + 2;
+          int maxWidth = Mathf.Max(minWidth + 1, levelSchema.pathWidthMax);
+          int pathWidth = Random.Range(minWidth, maxWidth);
 
           Vector3Int pathSectionStart = new Vector3Int(pathPos.x - pathWidth / 2, pathPos.y, pathPos.z - pathWidth / 2);
           for (int i = 0; i < pathWidth; i++)
@@ -298,7 +313,7 @@ public class LevelGenEngine : MonoBehaviour
         }
 
         // add start and end points to list of paths that have been generated
-        paths.Add(new Block[2][] { startDoorPair, endDoorPair });
+        paths.Add(new Block[2][][] { startDoor, endDoor });
       }
 
     return blocks;
@@ -511,20 +526,20 @@ public class LevelGenEngine : MonoBehaviour
   }
 
   // TODO: Once doors are being saved, adjust to check all door blocks in door
-  private bool PathExists(List<Block[][]> paths, Block[] startPair, Block[] endPair)
+  private bool PathExists(List<Block[][][]> paths, Block[][] start, Block[][] end)
   {
-    foreach (Block[][] path in paths)
+    foreach (Block[][][] path in paths)
       if (
           (
-            path[0][0].relativePosition == startPair[0].relativePosition
-            && path[0][1].relativePosition == startPair[1].relativePosition
-            && path[1][0].relativePosition == endPair[0].relativePosition
-            && path[1][1].relativePosition == endPair[1].relativePosition
+            path[0][0][0].relativePosition == start[0][0].relativePosition
+            && path[0][0][1].relativePosition == start[0][1].relativePosition
+            && path[0][1][0].relativePosition == end[0][0].relativePosition
+            && path[1][1][1].relativePosition == end[0][1].relativePosition
           ) || (
-            path[0][0].relativePosition == endPair[0].relativePosition
-            && path[0][1].relativePosition == endPair[1].relativePosition
-            && path[1][0].relativePosition == startPair[0].relativePosition
-            && path[1][1].relativePosition == startPair[1].relativePosition
+            path[0][0][0].relativePosition == end[0][0].relativePosition
+            && path[0][0][1].relativePosition == end[0][1].relativePosition
+            && path[0][1][0].relativePosition == start[0][0].relativePosition
+            && path[1][1][1].relativePosition == start[0][1].relativePosition
           )
       )
         return true;
