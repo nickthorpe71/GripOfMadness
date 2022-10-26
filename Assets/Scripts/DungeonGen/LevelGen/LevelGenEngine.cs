@@ -56,6 +56,13 @@ public class LevelGenEngine : MonoBehaviour
 
   private Room GenerateRoom(LevelSchema levelSchema, int currentRoomNum, int numRooms)
   {
+    // TODO: THIS GenerateRoom function should optionally take in a "face" of another room which will determine:
+    //  - min height so it can match the face or be larger
+    //  - min width so it can match the face or be larger
+    //  - starting doors which must match the face exactly
+    //  - starting position which will be determined after the new rooms depth is determined
+    //      (new room pos = old room pos +or- old room depth/width (depending on side) +or- new room depth/width (depending on side))
+
     // determine room size
     int roomWidth = Random.Range(levelSchema.minRoomSize.x, levelSchema.maxRoomSize.x + 1);
     int roomDepth = (int)Mathf.Max(Mathf.Floor(roomWidth / 2), Random.Range(levelSchema.minRoomSize.z, levelSchema.maxRoomSize.z + 1));
@@ -64,11 +71,20 @@ public class LevelGenEngine : MonoBehaviour
     Vector3Int roomSize = new Vector3Int(roomWidth, roomHeight, roomDepth);
 
     Block[][][] blocks = new Block[roomSize.x][][];
-    blocks = GenerateRoomBorder(blocks, roomSize);
-    blocks = CarveOutDoors(blocks, levelSchema, roomSize, currentRoomNum, numRooms);
-    blocks = TrimUnusedBottomOfRoom(blocks, roomSize, levelSchema);
-    blocks = AddPlatformsInFrontOfDoors(blocks, levelSchema, roomSize);
-    blocks = GeneratePaths(blocks, roomSize, levelSchema);
+    GenerateRoomBorder(blocks, roomSize);
+    CarveOutDoors(blocks, levelSchema, roomSize, currentRoomNum, numRooms);
+    TrimUnusedBottomOfRoom(blocks, roomSize, levelSchema);
+    AddPlatformsInFrontOfDoors(blocks, levelSchema, roomSize);
+    GeneratePaths(blocks, roomSize, levelSchema);
+
+    // TODO: SMOOTHING (should likely be later in the chain but best to handle it now so we can see results)
+    //  - 1. if a null/EMPTY block has > 4 FILLED neighbors, fill it
+    //  - 2. if a null/EMPTY block has 6 FILLED neighbors, fill it
+    //  - 3. (start from the bottom) if a FILLED block has 6 FILLED neighbors, remove it
+    //  - of a null/EMPTY block's y neighbors are both FILLED, fill it
+    //  - (to fill vertical gaps of 2: if a null/EMPTY block has 1 FILLED y neighbor and a gap(null/EMPTY) followed by a FILLED in the opposite y direction, fill the block and the null/EMPTY block in the opposite y direction
+    //  - if a FILLED block as no filled neighbors, remove it
+    //  - if a null/EMPTY block as 2 FILLED neighbors on x or z, fill it
 
 
     // TODO: (later)
@@ -116,14 +132,7 @@ public class LevelGenEngine : MonoBehaviour
     // - find "cracks" that are less than 3 blocks wide and fill them
     // - also look for towers of PATH blocks and build a ramp, stairs, climbable to them
 
-    // TODO: SMOOTHING
-    //  - 1. if a null/EMPTY block has > 4 FILLED neighbors, fill it
-    //  - 2. if a null/EMPTY block has 6 FILLED neighbors, fill it
-    //  - 3. (start from the bottom) if a FILLED block has 6 FILLED neighbors, remove it
-    //  - of a null/EMPTY block's y neighbors are both FILLED, fill it
-    //  - (to fill vertical gaps of 2: if a null/EMPTY block has 1 FILLED y neighbor and a gap(null/EMPTY) followed by a FILLED in the opposite y direction, fill the block and the null/EMPTY block in the opposite y direction
-    //  - if a FILLED block as no filled neighbors, remove it
-    //  - if a null/EMPTY block as 2 FILLED neighbors on x or z, fill it
+
 
     // TODO: SLOPES
     // - add slopes on L shapes and corner slopes on corner shapes
@@ -257,11 +266,9 @@ public class LevelGenEngine : MonoBehaviour
       (lowest, next) => next[0][0].relativePosition.y < lowest[0][0].relativePosition.y ? next : lowest)[0][0].relativePosition.y;
 
     // trim the bottom of the room up to 2 below the lowest door
-    int trimY = lowestDoorY - 2;
+    int trimY = lowestDoorY - 1;
 
     if (trimY <= 0) return blocks;
-
-    Debug.Log("Trimming bottom of room by " + trimY + " blocks");
 
     // fill blocks below the trim level with FILLED blocks
     for (int x = 0; x < roomSize.x; x++)
