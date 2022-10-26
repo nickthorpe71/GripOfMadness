@@ -77,15 +77,7 @@ public class LevelGenEngine : MonoBehaviour
     AddPlatformsInFrontOfDoors(blocks, levelSchema, roomSize);
     GeneratePaths(blocks, roomSize, levelSchema);
 
-    // TODO: SMOOTHING (should likely be later in the chain but best to handle it now so we can see results)
-    //  - 1. if a null/EMPTY block has > 4 FILLED neighbors, fill it
-    //  - 2. if a null/EMPTY block has 6 FILLED neighbors, fill it
-    //  - 3. (start from the bottom) if a FILLED block has 6 FILLED neighbors, remove it
-    //  - of a null/EMPTY block's y neighbors are both FILLED, fill it
-    //  - (to fill vertical gaps of 2: if a null/EMPTY block has 1 FILLED y neighbor and a gap(null/EMPTY) followed by a FILLED in the opposite y direction, fill the block and the null/EMPTY block in the opposite y direction
-    //  - if a FILLED block as no filled neighbors, remove it
-    //  - if a null/EMPTY block as 2 FILLED neighbors on x or z, fill it
-
+    ApplySmoothing(blocks);
 
     // TODO: (later)
     // - add skylights
@@ -267,16 +259,13 @@ public class LevelGenEngine : MonoBehaviour
 
     // trim the bottom of the room up to 2 below the lowest door
     int trimY = lowestDoorY - 1;
-
     if (trimY <= 0) return blocks;
 
     // fill blocks below the trim level with FILLED blocks
     for (int x = 0; x < roomSize.x; x++)
       for (int y = 0; y < trimY; y++)
         for (int z = 0; z < roomSize.z; z++)
-        {
           blocks[x][y][z] = new Block(new Vector3Int(x, y, z), BlockType.FILLED, Quaternion.identity);
-        }
 
     return blocks;
   }
@@ -413,7 +402,6 @@ public class LevelGenEngine : MonoBehaviour
     return path;
   }
 
-
   private Block[][][] AddPathSupports(Block[][][] blocks)
   {
     int currHeight = Random.Range(2, 6);
@@ -448,6 +436,121 @@ public class LevelGenEngine : MonoBehaviour
                 break;
         }
       }
+    }
+
+    return blocks;
+  }
+
+  private Block[][][] ApplySmoothing(Block[][][] blocks)
+  {
+    int numChanges = 10000000;
+    int round = 0;
+
+    while (numChanges > 0)
+    {
+      round++;
+      numChanges = 0;
+      for (int x = 0; x < blocks.Length; x++)
+        for (int y = 0; y < blocks[x].Length; y++)
+          for (int z = 0; z < blocks[x][y].Length; z++)
+          {
+            Block block = blocks[x][y][z];
+            if (block != null && block.type == BlockType.BORDER) continue;
+
+            bool isFilled = block != null && (block.type == BlockType.FILLED || block.type == BlockType.BORDER);
+            bool isEmpty = block == null || block.type == BlockType.EMPTY || block.type == BlockType.PATH;
+
+            Block[] neighbors = GetNeighborsByPos(blocks, new Vector3Int(x, y, z));
+
+            int filledNeighbors = 0;
+            foreach (Block neighbor in neighbors)
+              if (neighbor != null && (neighbor.type == BlockType.FILLED || neighbor.type == BlockType.BORDER))
+                filledNeighbors++;
+
+            // if a null/EMPTY block has > 4 FILLED neighbors, fill it
+            if (isEmpty && filledNeighbors >= 4)
+            {
+              blocks[x][y][z] = new Block(new Vector3Int(x, y, z), BlockType.FILLED, Quaternion.identity);
+              numChanges++;
+              Debug.Log("Round " + round + ": 1");
+            }
+
+            // if a null/EMPTY block's y neighbors are both FILLED, fill it
+            int yFilledNeighborsCount = neighbors.Where(neighbor => neighbor != null && neighbor.relativePosition.y != y && (neighbor.type == BlockType.FILLED || neighbor.type == BlockType.BORDER)).Count();
+
+            if (isEmpty && yFilledNeighborsCount == 2)
+            {
+              blocks[x][y][z] = new Block(new Vector3Int(x, y, z), BlockType.FILLED, Quaternion.identity);
+              numChanges++;
+              Debug.Log("Round " + round + ": 2");
+            }
+
+            // to fill vertical gaps of 2:
+            // if a null/EMPTY block has 1 FILLED y neighbor and a gap(null/EMPTY) followed by a FILLED in the opposite y direction,
+            // fill the block and the null/EMPTY block in the opposite y direction
+            if (isEmpty && yFilledNeighborsCount == 1)
+            {
+              Block yNeighbor = neighbors.Where(neighbor => neighbor != null && neighbor.relativePosition.y != y).First();
+              int oppositeDirOfYNeighbor = yNeighbor.relativePosition.y > y ? -1 : 1;
+
+              // if the block in the opposite y direction is in bounds
+              if (oppositeDirOfYNeighbor >= 0 && oppositeDirOfYNeighbor < blocks[x].Length)
+              {
+                Block yNeighborOpposite = blocks[x][y + oppositeDirOfYNeighbor][z];
+                // get y neighbors y neighbor in the opposite y direction
+                if (y + oppositeDirOfYNeighbor * 2 >= 0 && y + oppositeDirOfYNeighbor * 2 < blocks[x].Length)
+                {
+                  Block yNeighborOppositeYNeighbor = blocks[x][y + oppositeDirOfYNeighbor * 2][z];
+                  // if the block in the opposite y direction is null/EMPTY and the y neighbor in the opposite y direction is FILLED
+                  if ((yNeighborOpposite == null || yNeighborOpposite.type == BlockType.EMPTY || yNeighborOpposite.type == BlockType.PATH) && yNeighborOppositeYNeighbor != null && (yNeighborOppositeYNeighbor.type == BlockType.FILLED || yNeighborOppositeYNeighbor.type == BlockType.BORDER))
+                  {
+                    blocks[x][y][z] = new Block(new Vector3Int(x, y, z), BlockType.FILLED, Quaternion.identity);
+                    blocks[x][y + oppositeDirOfYNeighbor][z] = new Block(new Vector3Int(x, y + oppositeDirOfYNeighbor, z), BlockType.FILLED, Quaternion.identity);
+                    numChanges++;
+                    Debug.Log("Round " + round + ": 3");
+                  }
+                }
+              }
+            }
+
+            // if a FILLED block as no filled neighbors, remove it
+            if (isFilled && filledNeighbors == 0)
+            {
+              blocks[x][y][z] = null;
+              numChanges++;
+              Debug.Log("Round " + round + ": 4");
+            }
+
+            // get filled neighbors on x
+            int xFilledNeighborsCount = neighbors
+              .Where(neighbor => neighbor != null
+                && neighbor.relativePosition.x != x
+                && (neighbor.type == BlockType.FILLED || neighbor.type == BlockType.BORDER))
+              .Count();
+
+            // get filled neighbors on z
+            int zFilledNeighborsCount = neighbors
+              .Where(neighbor => neighbor != null
+                && neighbor.relativePosition.z != z
+                && (neighbor.type == BlockType.FILLED || neighbor.type == BlockType.BORDER))
+              .Count();
+
+            if (isEmpty && (xFilledNeighborsCount == 2 || zFilledNeighborsCount == 2))
+            {
+              blocks[x][y][z] = new Block(new Vector3Int(x, y, z), BlockType.FILLED, Quaternion.identity);
+              numChanges++;
+              Debug.Log("Round " + round + ": 5");
+            }
+
+            // if a FILLED block has 6 FILLED or BORDER neighbors, remove it
+            // if (isFilled && filledNeighbors == 6)
+            // {
+            //   blocks[x][y][z] = null;
+            //   numChanges++;
+            // }
+
+            if (round > 10) break;
+          }
     }
 
     return blocks;
@@ -550,20 +653,39 @@ public class LevelGenEngine : MonoBehaviour
     return false;
   }
 
-  private void PrintBlocks(Block[][][] blocks)
+  public Block[] GetNeighborsByPos(Block[][][] blocks, Vector3Int target)
   {
-    for (int x = 0; x < blocks.Length; x++)
-    {
-      for (int y = 0; y < blocks[x].Length; y++)
-      {
-        for (int z = 0; z < blocks[x][y].Length; z++)
-        {
-          Block block = blocks[x][y][z];
-          if (block != null)
-            Debug.Log(block.type);
-        }
-      }
-    }
+    List<Block> neighbors = new List<Block>();
+
+    // check all 6 directions
+    // - if the block is not null and is not the target block then add it to the list of neighbors
+    // - if the block is null then add it to the list of neighbors
+
+    // check north
+    if (target.z < blocks[0][0].Length - 1)
+      neighbors.Add(blocks[target.x][target.y][target.z + 1]);
+
+    // check south
+    if (target.z > 0)
+      neighbors.Add(blocks[target.x][target.y][target.z - 1]);
+
+    // check east
+    if (target.x < blocks.Length - 1)
+      neighbors.Add(blocks[target.x + 1][target.y][target.z]);
+
+    // check west
+    if (target.x > 0)
+      neighbors.Add(blocks[target.x - 1][target.y][target.z]);
+
+    // check up
+    if (target.y < blocks[0].Length - 1)
+      neighbors.Add(blocks[target.x][target.y + 1][target.z]);
+
+    // check down
+    if (target.y > 0)
+      neighbors.Add(blocks[target.x][target.y - 1][target.z]);
+
+    return neighbors.ToArray();
   }
 
   // Instantiation

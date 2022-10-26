@@ -69,7 +69,6 @@ namespace DungeonGen
 
   public class LevelSchema
   {
-
     public int minRooms { get; }
     public int maxRooms { get; }
     public Vector3Int minRoomSize { get; }
