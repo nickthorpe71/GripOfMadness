@@ -56,7 +56,7 @@ public class LevelGenEngine : MonoBehaviour
 
   private Room GenerateRoom(LevelSchema levelSchema, int currentRoomNum, int numRooms)
   {
-    // TODO: THIS GenerateRoom function should optionally take in a "face" of another room which will determine:
+    // TODO: This GenerateRoom function should optionally take in a "face" of another room which will determine:
     //  - min height so it can match the face or be larger
     //  - min width so it can match the face or be larger
     //  - starting doors which must match the face exactly
@@ -79,13 +79,52 @@ public class LevelGenEngine : MonoBehaviour
 
     ApplySmoothing(blocks);
 
-    // TODO: (later)
-    // - add skylights
+    ApplyHollowing(blocks); // Should likely always be last
 
     // TODO: Add path option to loop around room to get to other door
     // roll before creating a path to see if it should go around outside or through the room
 
-    // TODO: add structures
+    // TODO: Add util function that gathers all surfaces surfaces that are accessible
+    // - this means the player can get to them somehow
+    // - likely want to see if there is a path on that surface
+    // - want to check if there is another walkable surface above it and adjacent to it
+    // used by:
+    // - accessability
+    // - spawning
+
+    // TODO: ACCESSABILITY:
+    // - Look for areas that the player could fall into and not be able to get out of or that are too tall to reach and add a series of RAMP and FILLED sections to prevent this
+    // 	  - this will likely consist of looking for any sections that are FILLED with nothing above them and making sure that a ramp leads to it or any other FILLED sections around them have a ramp
+    // - look for paths that are too high to jump and add a ramp to them
+    // - find "cracks" that are less than 3 blocks wide and fill them
+    // - also look for towers of PATH blocks and build a ramp, stairs, climbable to them
+
+    // TODO: SLOPES
+    // - add slopes on L shapes and corner slopes on corner shapes
+
+    // TODO: Grab groupings of blocks and replace them with a structure of the same size 
+    // - floors, walls, pillars, stairs replace slopes, etc
+
+    // TODO: Create a reference map to all open areas with a filled section below them and mark them SPAWNABLE
+
+    // TODO: Fill all remaining sections with EMPTY
+
+    // TODO: Decoration
+    // - walls can be decorated
+    // - decoration can also include making things look more natural
+    // - Could go through and replace sets of FILLED blocks with decorative objects that take up the same amount of space
+
+    // TODO: Gizmos
+    // - add chests
+
+    // TODO: Monsters
+    // - check how much open space in an area and add monsters based on that
+
+
+    // TODO: (later)
+    // - add skylights
+
+    // TODO: (maybe) add structures
     // Check how much open floor space there is, if there's not much we probably need to create some
 
     // --- Themes ---
@@ -115,38 +154,6 @@ public class LevelGenEngine : MonoBehaviour
     // *- flat square floating platforms
     // *- balconies from walls
     // *- lots of open space (goes in an puts a bunch of empty space)
-
-
-    // TODO: ACCESSABILITY:
-    // - Look for areas that the player could fall into and not be able to get out of or that are too tall to reach and add a series of RAMP and FILLED sections to prevent this
-    // 	  - this will likely consist of looking for any sections that are FILLED with nothing above them and making sure that a ramp leads to it or any other FILLED sections around them have a ramp
-    // - look for paths that are too high to jump and add a ramp to them
-    // - find "cracks" that are less than 3 blocks wide and fill them
-    // - also look for towers of PATH blocks and build a ramp, stairs, climbable to them
-
-
-
-    // TODO: SLOPES
-    // - add slopes on L shapes and corner slopes on corner shapes
-
-    // TODO: Grab groupings of blocks and replace them with a structure of the same size 
-    // - floors, walls, pillars, stairs replace slopes, etc
-
-    // TODO: Create a reference map to all open areas with a filled section below them and mark them SPAWNABLE
-
-    // TODO: Fill all remaining sections with EMPTY
-
-    // TODO: Decoration
-    // - walls can be decorated
-    // - decoration can also include making things look more natural
-    // - Could go through and replace sets of FILLED blocks with decorative objects that take up the same amount of space
-
-    // TODO: Gizmos
-    // - add chests
-
-    // TODO: Monsters
-    // - check how much open space in an area and add monsters based on that
-
 
     return new Room(blocks, roomSize, Vector3Int.zero);
   }
@@ -462,52 +469,57 @@ public class LevelGenEngine : MonoBehaviour
 
             Block[] neighbors = GetNeighborsByPos(blocks, new Vector3Int(x, y, z));
 
-            int filledNeighbors = 0;
-            foreach (Block neighbor in neighbors)
-              if (neighbor != null && (neighbor.type == BlockType.FILLED || neighbor.type == BlockType.BORDER))
-                filledNeighbors++;
+            int filledNeighbors = neighbors.Aggregate(0, (count, neighbor) =>
+              (neighbor != null && (neighbor.type == BlockType.FILLED || neighbor.type == BlockType.BORDER))
+              ? count + 1 : count);
 
-            // if a null/EMPTY block has > 4 FILLED neighbors, fill it
+            // if a null/EMPTY/PATH block has > 4 FILLED neighbors, fill it
             if (isEmpty && filledNeighbors >= 4)
             {
               blocks[x][y][z] = new Block(new Vector3Int(x, y, z), BlockType.FILLED, Quaternion.identity);
               numChanges++;
-              Debug.Log("Round " + round + ": 1");
             }
 
-            // if a null/EMPTY block's y neighbors are both FILLED, fill it
-            int yFilledNeighborsCount = neighbors.Where(neighbor => neighbor != null && neighbor.relativePosition.y != y && (neighbor.type == BlockType.FILLED || neighbor.type == BlockType.BORDER)).Count();
+            // if a null/EMPTY/PATH block's y neighbors are both FILLED, fill it
+            int yFilledNeighborsCount = neighbors
+              .Where(neighbor => neighbor != null
+                && neighbor.relativePosition.y != y
+                && (neighbor.type == BlockType.FILLED || neighbor.type == BlockType.BORDER))
+              .Count();
 
             if (isEmpty && yFilledNeighborsCount == 2)
             {
               blocks[x][y][z] = new Block(new Vector3Int(x, y, z), BlockType.FILLED, Quaternion.identity);
               numChanges++;
-              Debug.Log("Round " + round + ": 2");
             }
 
             // to fill vertical gaps of 2:
-            // if a null/EMPTY block has 1 FILLED y neighbor and a gap(null/EMPTY) followed by a FILLED in the opposite y direction,
-            // fill the block and the null/EMPTY block in the opposite y direction
+            // if a null/EMPTY/PATH block has 1 FILLED y neighbor and a gap(null/EMPTY/PATH) followed by a FILLED in the opposite y direction,
+            // fill the block and the null/EMPTY/PATH block in the opposite y direction
             if (isEmpty && yFilledNeighborsCount == 1)
             {
               Block yNeighbor = neighbors.Where(neighbor => neighbor != null && neighbor.relativePosition.y != y).First();
               int oppositeDirOfYNeighbor = yNeighbor.relativePosition.y > y ? -1 : 1;
 
               // if the block in the opposite y direction is in bounds
-              if (oppositeDirOfYNeighbor >= 0 && oppositeDirOfYNeighbor < blocks[x].Length)
+              int yNeighborOppositeYPos = y + oppositeDirOfYNeighbor;
+              if (yNeighborOppositeYPos >= 0 && yNeighborOppositeYPos < blocks[x].Length)
               {
-                Block yNeighborOpposite = blocks[x][y + oppositeDirOfYNeighbor][z];
+                Block yNeighborOppositeBlock = blocks[x][yNeighborOppositeYPos][z];
                 // get y neighbors y neighbor in the opposite y direction
-                if (y + oppositeDirOfYNeighbor * 2 >= 0 && y + oppositeDirOfYNeighbor * 2 < blocks[x].Length)
+                int yNeighborOppositeYNeighborsY = y + oppositeDirOfYNeighbor * 2;
+                if (yNeighborOppositeYNeighborsY >= 0 && yNeighborOppositeYNeighborsY < blocks[x].Length)
                 {
-                  Block yNeighborOppositeYNeighbor = blocks[x][y + oppositeDirOfYNeighbor * 2][z];
-                  // if the block in the opposite y direction is null/EMPTY and the y neighbor in the opposite y direction is FILLED
-                  if ((yNeighborOpposite == null || yNeighborOpposite.type == BlockType.EMPTY || yNeighborOpposite.type == BlockType.PATH) && yNeighborOppositeYNeighbor != null && (yNeighborOppositeYNeighbor.type == BlockType.FILLED || yNeighborOppositeYNeighbor.type == BlockType.BORDER))
+                  Block yNeighborOppositeYNeighborBlock = blocks[x][yNeighborOppositeYNeighborsY][z];
+                  // if the block in the opposite y direction is null/EMPTY/PATH and the y neighbor in the opposite y direction is FILLED or BORDER
+                  if ((yNeighborOppositeBlock == null || yNeighborOppositeBlock.type == BlockType.EMPTY || yNeighborOppositeBlock.type == BlockType.PATH)
+                      && yNeighborOppositeYNeighborBlock != null
+                      && (yNeighborOppositeYNeighborBlock.type == BlockType.FILLED || yNeighborOppositeYNeighborBlock.type == BlockType.BORDER)
+                  )
                   {
                     blocks[x][y][z] = new Block(new Vector3Int(x, y, z), BlockType.FILLED, Quaternion.identity);
-                    blocks[x][y + oppositeDirOfYNeighbor][z] = new Block(new Vector3Int(x, y + oppositeDirOfYNeighbor, z), BlockType.FILLED, Quaternion.identity);
+                    blocks[x][yNeighborOppositeYPos][z] = new Block(new Vector3Int(x, yNeighborOppositeYPos, z), BlockType.FILLED, Quaternion.identity);
                     numChanges++;
-                    Debug.Log("Round " + round + ": 3");
                   }
                 }
               }
@@ -518,7 +530,6 @@ public class LevelGenEngine : MonoBehaviour
             {
               blocks[x][y][z] = null;
               numChanges++;
-              Debug.Log("Round " + round + ": 4");
             }
 
             // get filled neighbors on x
@@ -539,19 +550,43 @@ public class LevelGenEngine : MonoBehaviour
             {
               blocks[x][y][z] = new Block(new Vector3Int(x, y, z), BlockType.FILLED, Quaternion.identity);
               numChanges++;
-              Debug.Log("Round " + round + ": 5");
             }
-
-            // // if a FILLED block has 6 FILLED or BORDER neighbors, remove it
-            // if (block != null && block.type == BlockType.FILLED && filledNeighbors == 6)
-            // {
-            //   blocks[x][y][z] = new Block(new Vector3Int(x, y, z), BlockType.EMPTY, Quaternion.identity);
-            //   numChanges++;
-            // }
-
-            if (round > 15) break;
           }
+      if (round > 15)
+      {
+        Debug.Log($"Exceeded {round} rounds of smoothing");
+        break;
+      }
     }
+    return blocks;
+  }
+
+  private Block[][][] ApplyHollowing(Block[][][] blocks)
+  {
+    List<Vector3Int> toRemove = new List<Vector3Int>();
+
+    // collect all blocks that are not visible to the player for removal
+    for (int x = 0; x < blocks.Length; x++)
+      for (int y = 0; y < blocks[x].Length; y++)
+        for (int z = 0; z < blocks[x][y].Length; z++)
+        {
+          Block block = blocks[x][y][z];
+          // if (block != null && block.type == BlockType.B ORDER) continue;
+
+          Block[] neighbors = GetNeighborsByPos(blocks, new Vector3Int(x, y, z));
+
+          int filledNeighbors = neighbors.Aggregate(0, (count, neighbor) =>
+              (neighbor != null && (neighbor.type == BlockType.FILLED || neighbor.type == BlockType.BORDER))
+              ? count + 1 : count);
+
+          // if a FILLED block has 6 FILLED or BORDER neighbors, remove it
+          if (block != null && block.type == BlockType.FILLED && filledNeighbors == 6)
+            toRemove.Add(new Vector3Int(x, y, z));
+        }
+
+    // remove all blocks that are not visible to the player
+    foreach (Vector3Int pos in toRemove)
+      blocks[pos.x][pos.y][pos.z] = null;
 
     return blocks;
   }
