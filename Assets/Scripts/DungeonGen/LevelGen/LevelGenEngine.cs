@@ -542,14 +542,14 @@ public class LevelGenEngine : MonoBehaviour
               Debug.Log("Round " + round + ": 5");
             }
 
-            // if a FILLED block has 6 FILLED or BORDER neighbors, remove it
-            // if (isFilled && filledNeighbors == 6)
+            // // if a FILLED block has 6 FILLED or BORDER neighbors, remove it
+            // if (block != null && block.type == BlockType.FILLED && filledNeighbors == 6)
             // {
-            //   blocks[x][y][z] = null;
+            //   blocks[x][y][z] = new Block(new Vector3Int(x, y, z), BlockType.EMPTY, Quaternion.identity);
             //   numChanges++;
             // }
 
-            if (round > 10) break;
+            if (round > 15) break;
           }
     }
 
