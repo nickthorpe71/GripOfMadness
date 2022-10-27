@@ -81,8 +81,21 @@ public class LevelGenEngine : MonoBehaviour
 
     ApplyHollowing(blocks); // Should likely always be last
 
-    // TODO: Add path option to loop around room to get to other door
-    // roll before creating a path to see if it should go around outside or through the room
+    // Handle these two next because they might help solve accessability and slopes
+
+    // [ ] should turn all floors into wood floors
+    // [ ] should add columns to corners in some rooms
+    // [ ] could replace walls with walls but then need to put something around door frames
+    // [ ] need ceiling (use existing ceiling and stretch it to fit room
+    // [ ] could use stairs to get to unreachable areas
+
+    // TODO: Grab groupings of blocks and replace them with a structure of the same size 
+    // - floors, walls, pillars, stairs replace slopes, etc
+
+    // TODO: Add prebuilt asset structures to the room
+    // - when adding we need to make sure these structures are independently traversable so that if we spawn something on them it will be accessible
+
+    // ====================================
 
     // TODO: Add util function that gathers all surfaces surfaces that are accessible
     // - this means the player can get to them somehow
@@ -98,21 +111,22 @@ public class LevelGenEngine : MonoBehaviour
     // - look for paths that are too high to jump and add a ramp to them
     // - find "cracks" that are less than 3 blocks wide and fill them
     // - also look for towers of PATH blocks and build a ramp, stairs, climbable to them
+    // - also look for impassable walls that block doors
 
     // TODO: SLOPES
     // - add slopes on L shapes and corner slopes on corner shapes
 
-    // TODO: Grab groupings of blocks and replace them with a structure of the same size 
-    // - floors, walls, pillars, stairs replace slopes, etc
+
 
     // TODO: Create a reference map to all open areas with a filled section below them and mark them SPAWNABLE
+    // - should include prebuilt structures
+    // - should be an updated version of the accessability map used in the accessability step
 
     // TODO: Fill all remaining sections with EMPTY
 
     // TODO: Decoration
     // - walls can be decorated
     // - decoration can also include making things look more natural
-    // - Could go through and replace sets of FILLED blocks with decorative objects that take up the same amount of space
 
     // TODO: Gizmos
     // - add chests
@@ -327,14 +341,14 @@ public class LevelGenEngine : MonoBehaviour
         bool directPath = Random.Range(0, 2) == 0;
         List<Vector3Int> path = directPath
           ? GenerateDirectPath(startDoorCenter, endDoorCenter, roomSize)
-          : GenerateDirectPath(startDoorCenter, endDoorCenter, roomSize);
-
-        // GeneratePerimeterPath(startDoorCenter, endDoorCenter, roomSize);
+          : GeneratePerimeterPath(startDoorCenter, endDoorCenter, roomSize);
 
         foreach (Vector3Int pathPos in path)
         {
           // choose random path width
-          int minWidth = Mathf.Max(startDoor[0].Length, endDoor[0].Length) + 2;
+          // roll to see if we should increase chance of very narrow path
+          int chance = Random.Range(0, 100);
+          int minWidth = chance < 20 ? 4 : Mathf.Max(startDoor[0].Length, endDoor[0].Length);
           int maxWidth = Mathf.Max(minWidth + 1, levelSchema.pathWidthMax);
           int pathWidth = Random.Range(minWidth, maxWidth);
 
@@ -402,11 +416,27 @@ public class LevelGenEngine : MonoBehaviour
     while (currentPos != endPos)
     {
       direction = StepTowardEnd(currentPos, endPos, bounds);
+      direction = LockDirectionToWall(currentPos, direction, endPos, bounds);
       currentPos = currentPos + direction;
       path.Add(currentPos);
     }
 
     return path;
+  }
+
+  private Vector3Int LockDirectionToWall(Vector3Int currentPos, Vector3Int direction, Vector3Int endPos, Vector3Int bounds)
+  {
+    if (currentPos.x <= 1 && currentPos.z != 1 && currentPos.z != bounds.z - 1) direction.x = 0;
+    else if (currentPos.x >= bounds.x - 1 && currentPos.z != 1 && currentPos.z != bounds.z - 1) direction.x = 0;
+    else if (currentPos.z <= 1 && currentPos.x != 1 && currentPos.x != bounds.x - 1) direction.z = 0;
+    else if (currentPos.z >= bounds.z - 1 && currentPos.x != 1 && currentPos.x != bounds.x - 1) direction.z = 0;
+
+    // This is a bandaid fix because in some instances it can't find the edge of the room
+    // Not a critical fix for now so moving on
+    if (direction.x == 0 && direction.z == 0 && direction.y == 0)
+      direction = StepTowardEnd(currentPos, endPos, bounds);
+
+    return direction;
   }
 
   private Block[][][] AddPathSupports(Block[][][] blocks)
@@ -667,24 +697,44 @@ public class LevelGenEngine : MonoBehaviour
     return direction;
   }
 
-  // TODO: Once doors are being saved, adjust to check all door blocks in door
   private bool PathExists(List<Block[][][]> paths, Block[][] start, Block[][] end)
   {
     foreach (Block[][][] path in paths)
-      if (
-          (
-            path[0][0][0].relativePosition == start[0][0].relativePosition
-            && path[0][0][1].relativePosition == start[0][1].relativePosition
-            && path[0][1][0].relativePosition == end[0][0].relativePosition
-            && path[1][1][1].relativePosition == end[0][1].relativePosition
-          ) || (
-            path[0][0][0].relativePosition == end[0][0].relativePosition
-            && path[0][0][1].relativePosition == end[0][1].relativePosition
-            && path[0][1][0].relativePosition == start[0][0].relativePosition
-            && path[1][1][1].relativePosition == start[0][1].relativePosition
-          )
-      )
+    {
+      if (path[0] == start && path[path.Length - 1] == end)
         return true;
+
+      if (path[0] == end && path[path.Length - 1] == start)
+        return true;
+
+      if (path[0] == start)
+      {
+        for (int i = 1; i < path.Length; i++)
+          if (path[i] == end)
+            return true;
+      }
+
+      if (path[0] == end)
+      {
+        for (int i = 1; i < path.Length; i++)
+          if (path[i] == start)
+            return true;
+      }
+
+      if (path[path.Length - 1] == start)
+      {
+        for (int i = 1; i < path.Length; i++)
+          if (path[i] == end)
+            return true;
+      }
+
+      if (path[path.Length - 1] == end)
+      {
+        for (int i = 1; i < path.Length; i++)
+          if (path[i] == start)
+            return true;
+      }
+    }
     return false;
   }
 
