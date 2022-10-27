@@ -81,21 +81,16 @@ public class LevelGenEngine : MonoBehaviour
 
     ApplyHollowing(blocks); // Should likely always be last
 
-    // Handle these two next because they might help solve accessability and slopes
 
+    // TODO: Grab groupings of blocks and replace them with a structure of the same size 
+    // - floors, walls, pillars, stairs replace slopes, etc
     // [ ] should turn all floors into wood floors
     // [ ] should add columns to corners in some rooms
     // [ ] could replace walls with walls but then need to put something around door frames
     // [ ] need ceiling (use existing ceiling and stretch it to fit room
-    // [ ] could use stairs to get to unreachable areas
-
-    // TODO: Grab groupings of blocks and replace them with a structure of the same size 
-    // - floors, walls, pillars, stairs replace slopes, etc
 
     // TODO: Add prebuilt asset structures to the room
     // - when adding we need to make sure these structures are independently traversable so that if we spawn something on them it will be accessible
-
-    // ====================================
 
     // TODO: Add util function that gathers all surfaces surfaces that are accessible
     // - this means the player can get to them somehow
@@ -106,6 +101,15 @@ public class LevelGenEngine : MonoBehaviour
     // - spawning
 
     // TODO: ACCESSABILITY:
+    // potential implementation:
+    // - for each walkable surface
+    // - make a path to a door
+    // - if the path has to go up more than 3 blocks then we need to create a way to traverse this upward path 
+    //   - this could be a ladder, stairs, or a ramp
+    //   - we should save all these upward paths in their own list
+    // - the path should also consider that the player needs 3 height and 2 width (could start with 1 width for ease) to traverse the path
+    // - the player should be able to get to at least 1 door from every walkable surface
+
     // - Look for areas that the player could fall into and not be able to get out of or that are too tall to reach and add a series of RAMP and FILLED sections to prevent this
     // 	  - this will likely consist of looking for any sections that are FILLED with nothing above them and making sure that a ramp leads to it or any other FILLED sections around them have a ramp
     // - look for paths that are too high to jump and add a ramp to them
@@ -115,8 +119,7 @@ public class LevelGenEngine : MonoBehaviour
 
     // TODO: SLOPES
     // - add slopes on L shapes and corner slopes on corner shapes
-
-
+    // - use a combination for sloped and stairs
 
     // TODO: Create a reference map to all open areas with a filled section below them and mark them SPAWNABLE
     // - should include prebuilt structures
